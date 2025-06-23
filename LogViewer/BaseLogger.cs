@@ -8,13 +8,19 @@ using Microsoft.Extensions.Logging;
 
 namespace LogViewer
 {
+    /// <summary>
+    /// Base class for providing logging functionality, routing all log messages to a central real-time log viewer
+    /// </summary>
     public abstract partial class BaseLogger : ILoggable
     {
         protected BaseLogger(string? handle = null, Color? color = null, LogLevel logLevel = LogLevel.Information)
         {
-            if (LoggerFactory is null) throw new InvalidOperationException($"Must assign {nameof(BaseLogger)}.{nameof(LoggerFactory)} before creating an instance of {nameof(BaseLogger)}");
+            if (LoggerFactory is null) throw new InvalidOperationException($"Must call {nameof(BaseLogger)}.{nameof(Initialize)} before creating an instance of {nameof(BaseLogger)}");
+            if (ExcludeCharsFromName is null) ExcludeCharsFromName = [];
 
-            LogHandle = handle ?? GetType().Name;
+            string sanitizedHandle = handle ?? GetType().Name;
+            foreach (var c in ExcludeCharsFromName.Union([' '])) sanitizedHandle = sanitizedHandle.Replace(c.ToString(), "").Trim();
+            LogHandle = sanitizedHandle;
             LogColor = color ?? Colors.Black;
             LogLevel = logLevel;
 
@@ -32,20 +38,16 @@ namespace LogViewer
         {
             if (message is null) return;
 
-            StringBuilder logOutput = new();
-
-            var args = new LogEventArgs(logOutput.ToString(), LogColor)
+            var args = new LogEventArgs(level, LogHandle, message, LogColor)
             {
                 LogDateTime = LogUTCTime ? DateTime.Now.ToUniversalTime() : DateTime.Now.ToLocalTime()
             };
 
-            Logger.Log(level, logOutput.ToString());
+            Logger.Log(level, args.LogText);
 
-            if (LogEvent != null)
-            {
-                _ = OnRaiseLogEventAsync(args); // this should never raise an exception, everything is caught/logged within that method if there is an error
-            }
+            OnLogEvent(args); // this should never raise an exception, everything is caught/logged within that method if there is an error
         }
+
         public void Log<T>(LogLevel level, IEnumerable<T> iterable)
         {
             if (iterable is null) return;
@@ -110,27 +112,49 @@ namespace LogViewer
         public void LogWarning<T>(IEnumerable<T> iterable) => Log(LogLevel.Warning, iterable);
         public void LogWarning<TKey, TValue>(IDictionary<TKey, TValue> dict) => Log(LogLevel.Warning, dict);
 
-        public abstract void LogException(Exception exception, string headerMessage);
-
-
-        public void SubscribeLogEventSync(Action<object, LogEventArgs> handler)
+        public void LogException(Exception exception, string? headerMessage, LogLevel logLevel = LogLevel.Error)
         {
-            if (handler is null) return;
-            LogEvent += (sender, e) =>
+            if (exception is null) return;
+
+            string message = string.IsNullOrWhiteSpace(headerMessage) ? "Exception occured:" : headerMessage;
+            message += $"{Environment.NewLine}{exception}";
+
+            var args = new LogEventArgs(logLevel, LogHandle, message, LogColor)
+            {
+                LogDateTime = LogUTCTime ? DateTime.Now.ToUniversalTime() : DateTime.Now.ToLocalTime()
+            };
+
+            Logger.Log(logLevel: logLevel, exception: exception, message: args.LogText);
+
+            OnLogEvent(args); // this should never raise an exception, everything is caught/logged within that method if there is an error
+        }
+        public void LogException(Exception exception) => LogException(exception, null, LogLevel.Error);
+
+
+        public LogEventHandler? SubscribeLogEventSync(Action<object, LogEventArgs> handler)
+        {
+            if (handler is null) return null;
+
+            Task wrapper(object sender, LogEventArgs e)
             {
                 handler(sender, e);
                 return Task.CompletedTask;
-            };
+            }
+
+            LogEvent += wrapper;
+            return wrapper;
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1229:Use async/await when necessary", Justification = "Awaiting all tasks after select statement, need to trigger all invokers without delay")]
-        protected async Task OnRaiseLogEventAsync(LogEventArgs eventArgs)
+        private async Task OnRaiseLogEventAsync(LogEventHandler? logEvent, LogEventArgs eventArgs)
         {
             if (eventArgs is null) throw new ArgumentNullException(nameof(eventArgs));
+            var localEvent = logEvent;
+            if (localEvent is null) return;
 
             try
             {
-                var handlers = LogEvent?.GetInvocationList();
+                var handlers = localEvent.GetInvocationList();
                 if (handlers is null) return;
 
                 var tasks = handlers.Cast<LogEventHandler>()
@@ -152,6 +176,12 @@ namespace LogViewer
             {
                 Logger?.LogError(ex, "Error when trying to raise log event, one or more subscribers failed");
             }
+        }
+
+        protected void OnLogEvent(LogEventArgs eventArgs)
+        {
+            _ = OnRaiseLogEventAsync(DebugLogEvent, eventArgs);
+            _ = OnRaiseLogEventAsync(LogEvent, eventArgs);
         }
     }
 }

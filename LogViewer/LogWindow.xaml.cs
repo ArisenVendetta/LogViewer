@@ -12,11 +12,11 @@ using System.Windows.Shapes;
 namespace LogViewer
 {
     /// <summary>
-    /// Interaction logic for MainWindow.xaml
+    /// Interaction logic for LogWindow.xaml
     /// </summary>
-    public partial class MainWindow : Window
+    public partial class LogWindow : Window
     {
-        public MainWindow()
+        public LogWindow()
         {
             InitializeComponent();
         }
