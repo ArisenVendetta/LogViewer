@@ -14,6 +14,7 @@ namespace LogViewer
         public Color LogColor { get; } = color;
         public string LogText { get; } = message ?? throw new ArgumentNullException(nameof(message));
         public DateTime LogDateTime { get; init; }
+        public string LogDateTimeFormatted => LogDateTime.ToString(BaseLogger.LogDateTimeFormat);
         public LogLevel LogLevel { get; } = level;
         public Guid Guid { get; } = Guid.NewGuid();
 

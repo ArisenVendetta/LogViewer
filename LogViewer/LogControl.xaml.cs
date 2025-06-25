@@ -24,220 +24,33 @@ namespace LogViewer
     public partial class LogControl : UserControl, IDisposable
     {
         private readonly LogControlViewModel _viewModel;
-        private readonly object _pauseLock = new();
-        private readonly object _paragraphLock = new();
-        private Paragraph _paragraph = new();
+
         private bool _disposedValue;
-        private readonly DispatcherTimer _updateTimer;
-        private readonly List<LogEventArgs> _pendingLogsAdd = [];
-        private readonly List<LogEventArgs> _pendingLogsRemove = [];
-        private readonly object _pendingAddLock = new();
-        private readonly object _pendingRemoveLock = new();
+        private ScrollViewer? _scrollViewer;
 
         public LogControl()
         {
             InitializeComponent();
-            _viewModel = new LogControlViewModel(this.Dispatcher);
+            _viewModel = new LogControlViewModel(Dispatcher);
             this.DataContext = _viewModel;
-
-            _updateTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(25) };
-            _updateTimer.Tick += (s, e) => FlushPendingLogs();
-            _updateTimer.Start();
-
-            DisplayLogsInRichTextBox(__logBox, _viewModel.LogEvents.Items);
 
             _viewModel.LogEvents.CollectionChanged += (s, e) =>
             {
                 if (_viewModel.IsPaused) return;
-                HandleRichTextBoxCollectionChangedUpdate(s, e);
-            };
-        }
 
-        private void HandleRichTextBoxCollectionChangedUpdate(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
-        {
-            bool doReset = false;
-            lock (_pauseLock)
-            {
-                if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset)
+                if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add)
                 {
-                    doReset = true;
-                }
-                else if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add)
-                {
-                    var newItems = (e?.NewItems ?? new List<LogEventArgs>());
-                    if (newItems.Count >= 250)
-                        doReset = true;
-                    else
+                    if (_scrollViewer is null)
+                        _scrollViewer = GetScrollViewer(__logList);
+
+                    if (_scrollViewer is not null)
                     {
-                        lock (_pendingAddLock)
+                        Dispatcher.InvokeAsync(() =>
                         {
-                            _pendingLogsAdd.AddRange(newItems.Cast<LogEventArgs>());
-                        }
+                            _scrollViewer.ScrollToEnd();
+                        }, DispatcherPriority.Background);
                     }
                 }
-                else if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Remove)
-                {
-                    var oldItems = (e?.OldItems ?? new List<LogEventArgs>());
-                    if (oldItems.Count >= 250)
-                        doReset = true;
-                    else
-                    {
-                        lock (_pendingRemoveLock)
-                        {
-                            _pendingLogsRemove.AddRange(oldItems.Cast<LogEventArgs>());
-                        }
-                    }
-                }
-            }
-
-            if (doReset)
-            {
-                DisplayLogsInRichTextBox(__logBox, _viewModel.LogEvents.Items);
-                lock (_pendingAddLock)
-                {
-                    _pendingLogsAdd.Clear();
-                }
-                lock (_pendingRemoveLock)
-                {
-                    _pendingLogsRemove.Clear();
-                }
-            }
-        }
-
-        private void FlushPendingLogs()
-        {
-            try
-            {
-                _updateTimer.Stop();
-
-                RemoveOldLogLines();
-                AddNewLogLines();
-            }
-            catch (Exception ex)
-            {
-                _viewModel.Logger.LogError(ex, "Error while flushing pending logs.");
-            }
-            finally
-            {
-                if (!_updateTimer.IsEnabled)
-                    _updateTimer.Start();
-            }
-        }
-
-        private void AddNewLogLines()
-        {
-            List<Inline> toRemove = [];
-            int amountToRemove = (int)Math.Floor(_viewModel.MaxLogSize * 0.1);
-            if (_pendingLogsRemove.Count > 0 && _pendingLogsRemove.Count >= amountToRemove)
-            {
-                lock (_pendingRemoveLock)
-                {
-                    var guids = _pendingLogsRemove.Take(amountToRemove).Select(x => x.Guid).ToList();
-                    _pendingLogsRemove.RemoveRange(0, guids.Count);
-                    lock (_paragraphLock)
-                    {
-                        toRemove = _paragraph.Inlines.Where(inline =>
-                        {
-                            if (inline.Tag is Guid guid)
-                                return guids.Contains(guid);
-                            return false;
-                        }).ToList();
-                    }
-                }
-            }
-
-            if ((toRemove?.Count ?? 0) > 0)
-            {
-                Dispatcher.Invoke(() =>
-                {
-                    lock (_paragraphLock)
-                    {
-                        foreach (var inline in toRemove ?? [])
-                        {
-                            _paragraph.Inlines.Remove(inline);
-                        }
-                    }
-                });
-            }
-        }
-
-        private void RemoveOldLogLines()
-        {
-            List<Inline> pending = [];
-            if (_pendingLogsAdd.Count > 0)
-            {
-                List<LogEventArgs> toAdd;
-                lock (_pendingAddLock)
-                {
-                    toAdd = new(_pendingLogsAdd.Take(250));
-                    _pendingLogsAdd.RemoveRange(0, toAdd.Count);
-                }
-
-                foreach (var log in toAdd)
-                {
-                    pending.AddRange(CreateParagraphFromLogEventArgs(log));
-                }
-            }
-            if ((pending?.Count ?? 0) > 0)
-            {
-                Dispatcher.Invoke(() =>
-                {
-                    lock (_paragraphLock)
-                    {
-                        _paragraph.Inlines.AddRange(pending ?? []);
-                    }
-                    __logBox.ScrollToEnd();
-                });
-            }
-        }
-
-        private void DisplayLogsInRichTextBox(RichTextBox richTextBox, IEnumerable<LogEventArgs> logs)
-        {
-            var doc = new FlowDocument();
-            lock (_paragraphLock)
-            {
-                _paragraph = new Paragraph()
-                {
-                    Margin = new Thickness(0),
-                    Padding = new Thickness(0)
-                };
-                foreach (var log in logs)
-                {
-                    _paragraph.Inlines.AddRange(CreateParagraphFromLogEventArgs(log));
-                }
-                doc.Blocks.Add(_paragraph);
-            }
-            Dispatcher.Invoke(() =>
-            {
-                richTextBox.Document = doc;
-                __logBox.ScrollToEnd();
-            });
-        }
-
-        private IEnumerable<Inline> CreateParagraphFromLogEventArgs(LogEventArgs eventArgs)
-        {
-            if (eventArgs is null) yield break;
-
-            var logParts = eventArgs.GetLogMessageParts();
-            yield return new Run($"{logParts.Timestamp} ") { Tag = eventArgs.Guid };
-            yield return new Run("[") { Tag = eventArgs.Guid };
-            yield return new Run(logParts.LogHandle) { Foreground = GetColorForLogLevel(eventArgs.LogLevel), Tag = eventArgs.Guid };
-            yield return new Run("] ") { Tag = eventArgs.Guid };
-            yield return new Run(logParts.Body) { Foreground = new SolidColorBrush(eventArgs.LogColor), Tag = eventArgs.Guid };
-            yield return new LineBreak() { Tag = eventArgs.Guid };
-        }
-
-        private SolidColorBrush GetColorForLogLevel(LogLevel level)
-        {
-            return level switch
-            {
-                LogLevel.Critical    => new SolidColorBrush(Colors.Red),
-                LogLevel.Error       => new SolidColorBrush(Colors.OrangeRed),
-                LogLevel.Warning     => new SolidColorBrush(Colors.Orange),
-                LogLevel.Information => new SolidColorBrush(Colors.Black),
-                LogLevel.Debug       => new SolidColorBrush(Colors.Blue),
-                LogLevel.Trace       => new SolidColorBrush(Colors.Gray),
-                _                    => new SolidColorBrush(Colors.Black)
             };
         }
 
@@ -258,16 +71,21 @@ namespace LogViewer
             }
         }
 
-        private void Pause_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        private void Pause_PreviewMouseDown(object sender, MouseButtonEventArgs e) => _viewModel.IsPaused = !_viewModel.IsPaused;
+
+        private ScrollViewer? GetScrollViewer(DependencyObject depObj)
         {
-            lock (_pauseLock)
+            if (depObj is null) return null;
+            if (depObj is ScrollViewer scrollViewer)
+                return scrollViewer;
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(depObj); i++)
             {
-                if (_viewModel.IsPaused)
-                {
-                    DisplayLogsInRichTextBox(__logBox, _viewModel.LogEvents.Items);
-                }
-                _viewModel.IsPaused = !_viewModel.IsPaused;
+                var child = VisualTreeHelper.GetChild(depObj, i);
+                var result = GetScrollViewer(child);
+                if (result != null)
+                    return result;
             }
+            return null;
         }
 
         #region IDisposable Support

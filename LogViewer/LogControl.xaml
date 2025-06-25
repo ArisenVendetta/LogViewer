@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:local="clr-namespace:LogViewer"
+             xmlns:converters="clr-namespace:LogViewer.Converters"
              mc:Ignorable="d"
              d:DesignHeight="450" d:DesignWidth="800" Unloaded="LogViewer_Unloaded"
              d:DataContext="{d:DesignInstance Type=local:LogControlViewModel}">
@@ -12,6 +13,9 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/LogViewer;component/Styles/ButtonStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+
+            <converters:ColorToBrushConverter x:Key="ColorToBrushConverter"/>
+            <converters:LogLevelColorConverter x:Key="LogLevelToBrushConverter"/>
         </ResourceDictionary>
     </UserControl.Resources>
     <Grid Background="White">
@@ -19,8 +23,22 @@
             <RowDefinition/>
             <RowDefinition Height="40"/>
         </Grid.RowDefinitions>
-        <RichTextBox x:Name="__logBox" Grid.Row="0" IsReadOnly="True" VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Auto"
-                     Margin="5" FontFamily="Consolas" FontSize="12" IsHitTestVisible="{Binding IsPaused}" />
+        <ListView x:Name="__logList" Grid.Row="0" ItemsSource="{Binding LogEvents, Mode=OneWay}" FontFamily="Consolas" FontSize="12" Margin="5"
+                  ScrollViewer.VerticalScrollBarVisibility="Visible"
+                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                  SelectionMode="Single">
+            <ListView.ItemTemplate>
+                <DataTemplate DataType="{x:Type local:LogEventArgs}">
+                    <TextBlock Margin="0" Padding="0">
+                        <Run Text="{Binding LogDateTimeFormatted, Mode=OneWay}" Tag="{Binding Guid}"/>
+                        <Run Text="[" Tag="{Binding Guid}"/>
+                        <Run Text="{Binding LogHandle, Mode=OneWay}" Foreground="{Binding LogLevel, Converter={StaticResource LogLevelToBrushConverter}}" Tag="{Binding Guid}"/>
+                        <Run Text="]" Tag="{Binding Guid}"/>
+                        <Run Text="{Binding LogText, Mode=OneWay}" Foreground="{Binding LogColor, Converter={StaticResource ColorToBrushConverter}}" Tag="{Binding Guid}"/>
+                    </TextBlock>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="300"/>

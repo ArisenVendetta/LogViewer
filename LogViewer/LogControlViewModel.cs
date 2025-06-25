@@ -20,10 +20,28 @@ namespace LogViewer
         private Regex _handleCheck = new Regex(".*");
         private bool disposedValue;
         private ILogger _logger;
+        private bool _isPaused = false;
+        private List<LogEventArgs> _pauseBuffer = new();
+        private object _pauseLock = new();
 
         public ILogger Logger => _logger ??= BaseLogger.LoggerFactory?.CreateLogger<LogControlViewModel>() ?? throw new InvalidOperationException($"Must call {nameof(BaseLogger)}.{nameof(BaseLogger.Initialize)} before creating an instance of {nameof(LogControlViewModel)}");
         public LogCollection LogEvents { get; } = new();
-        public bool IsPaused { get; set; } = false;
+        public bool IsPaused
+        {
+            get => _isPaused;
+            set
+            {
+                if (_isPaused == value) return;
+                lock (_pauseLock)
+                {
+                    _isPaused = value;
+                    if (!_isPaused)
+                    {
+                        ResumeAndFlushLogs();
+                    }
+                }
+            }
+        }
 
         public bool LogHandleIgnoreCase
         {
@@ -66,6 +84,15 @@ namespace LogViewer
 
             if (IsLogEventHandleFiltered(e.LogHandle))
             {
+                lock (_pauseLock)
+                {
+                    if (IsPaused)
+                    {
+                        _pauseBuffer.Add(e);
+                        return;
+                    }
+                }
+
                 if (_dispatcher.CheckAccess())
                     await AddAndTrimLogEventsIfNeededAsync(e);
                 else
@@ -128,6 +155,24 @@ namespace LogViewer
             {
                 _logger.LogError(ex, "Error while updating visible logs in LogControlViewModel.");
             }
+        }
+
+        private void ResumeAndFlushLogs()
+        {
+            if (_pauseBuffer.Count == 0) return;
+
+            LogEventArgs last;
+            lock (_pauseLock)
+            {
+                var temp = _pauseBuffer.Take(_pauseBuffer.Count - 1).ToList();
+                last = _pauseBuffer.Last();
+                if (_dispatcher.CheckAccess())
+                    LogEvents.AddRange(new List<LogEventArgs>(_pauseBuffer));
+                else
+                    _dispatcher.Invoke(() => LogEvents.AddRange(new List<LogEventArgs>(_pauseBuffer)));
+                _pauseBuffer.Clear();
+            }
+            AddAndTrimLogEventsIfNeededAsync(last).GetAwaiter().GetResult();
         }
 
         private async Task AddAndTrimLogEventsIfNeededAsync(LogEventArgs e)
