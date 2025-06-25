@@ -10,12 +10,15 @@ namespace LogViewer
 {
     public abstract partial class BaseLogger
     {
-        public static void Initialize(ILoggerFactory loggerFactory)
+        internal static bool Initialized = false;
+        public static void Initialize(ILoggerFactory? loggerFactory)
         {
+            if (Initialized) return;
             if (loggerFactory is null) throw new ArgumentNullException(nameof(loggerFactory));
             LoggerFactory = loggerFactory;
             DebugLogQueue = new ConcurrentQueue<LogEventArgs>();
             DebugLogEvent += LogQueueHandlerAsync;
+            Initialized = true;
         }
         public static ILoggerFactory? LoggerFactory { get; internal set; }
         internal static event LogEventHandler? DebugLogEvent;

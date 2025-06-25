@@ -19,11 +19,10 @@ namespace LogViewer
         private bool _logHandleIgnoreCase = false;
         private Regex _handleCheck = new Regex(".*");
         private bool disposedValue;
-
         private ILogger _logger;
 
         public ILogger Logger => _logger ??= BaseLogger.LoggerFactory?.CreateLogger<LogControlViewModel>() ?? throw new InvalidOperationException($"Must call {nameof(BaseLogger)}.{nameof(BaseLogger.Initialize)} before creating an instance of {nameof(LogControlViewModel)}");
-        public ObservableCollection<LogEventArgs> LogEvents { get; } = new ObservableCollection<LogEventArgs>();
+        public LogCollection LogEvents { get; } = new();
         public bool IsPaused { get; set; } = false;
 
         public bool LogHandleIgnoreCase
@@ -64,12 +63,13 @@ namespace LogViewer
         private async Task OnLogEventAsync(object sender, LogEventArgs e)
         {
             if (e is null) return;
+
             if (IsLogEventHandleFiltered(e.LogHandle))
             {
                 if (_dispatcher.CheckAccess())
-                    AddAndTrimLogEventsIfNeeded(e);
+                    await AddAndTrimLogEventsIfNeededAsync(e);
                 else
-                    await _dispatcher.InvokeAsync(() => AddAndTrimLogEventsIfNeeded(e));
+                    await _dispatcher.InvokeAsync(async () => await AddAndTrimLogEventsIfNeededAsync(e));
             }
         }
 
@@ -130,11 +130,33 @@ namespace LogViewer
             }
         }
 
-        private void AddAndTrimLogEventsIfNeeded(LogEventArgs e)
+        private async Task AddAndTrimLogEventsIfNeededAsync(LogEventArgs e)
         {
-            LogEvents.Add(e);
-            while (LogEvents.Count > MaxLogSize)
-                LogEvents.RemoveAt(0); // Remove oldest
+            try
+            {
+                if (_dispatcher.CheckAccess())
+                    LogEvents.Add(e);
+                else
+                    await _dispatcher.InvokeAsync(() => LogEvents.Add(e));
+
+                int overFlow = LogEvents.Count - MaxLogSize;
+                if (overFlow > 0)
+                {
+                    int amountToRemove = overFlow + ((int)(MaxLogSize * 0.1));
+                    if (_dispatcher.CheckAccess())
+                        LogEvents.RemoveRange(0, amountToRemove); // Remove oldest
+                    else
+                        await _dispatcher.InvokeAsync(() => LogEvents.RemoveRange(0, amountToRemove)); // Remove oldest
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error while adding and trimming log events in LogControlViewModel.");
+            }
+            finally
+            {
+
+            }
         }
 
         #region IDisposable Support

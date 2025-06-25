@@ -67,7 +67,7 @@ namespace LogViewerExample
                     LogLevel.None
                 };
 
-                for (int i = 0; i < 50; i++)
+                for (int i = 0; i < 500; i++)
                 {
                     Color randomColor = Color.FromArgb(255, (byte)random.Next(256), (byte)random.Next(256), (byte)random.Next(256));
                     SomeObject obj = new SomeObject($"SomeObject{i:D4}", logLevels[random.Next(0, logLevels.Length)], randomColor);
