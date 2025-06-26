@@ -67,13 +67,17 @@ namespace LogViewer
             }
             catch (Exception ex)
             {
-                _viewModel.Logger.LogError(ex, "Error clearing logs.");
+                BaseLogger.LogErrorException(_viewModel.Logger, "Error while clearing logs in LogControl.", ex);
             }
         }
 
-        private void Pause_PreviewMouseDown(object sender, MouseButtonEventArgs e) => _viewModel.IsPaused = !_viewModel.IsPaused;
+        private void Pause_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            _viewModel.IsPaused = !_viewModel.IsPaused;
+            __pauseButton.Content = _viewModel.IsPaused ? "Resume" : "Pause";
+        }
 
-        private ScrollViewer? GetScrollViewer(DependencyObject depObj)
+        private static ScrollViewer? GetScrollViewer(DependencyObject depObj)
         {
             if (depObj is null) return null;
             if (depObj is ScrollViewer scrollViewer)

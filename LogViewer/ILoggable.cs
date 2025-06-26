@@ -16,7 +16,7 @@ namespace LogViewer
         public ILogger Logger { get; }
         public LogLevel LogLevel { get; }
 
-        public event LogEventHandler? LogEvent;
+        public event LogEvent? LogEvent;
 
         void Log(LogLevel level, string message);
         void Log<T>(LogLevel level, IEnumerable<T> iterable);
@@ -49,6 +49,6 @@ namespace LogViewer
         void LogException(Exception exception, string headerMessage, LogLevel logLevel = LogLevel.Error);
         void LogException(Exception exception);
 
-        LogEventHandler? SubscribeLogEventSync(Action<object, LogEventArgs> handler);
+        LogEvent? SubscribeLogEventSync(Action<object, LogEventArgs> handler);
     }
 }

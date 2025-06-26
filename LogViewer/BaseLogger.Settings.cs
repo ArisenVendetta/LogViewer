@@ -10,18 +10,19 @@ namespace LogViewer
 {
     public abstract partial class BaseLogger
     {
-        internal static bool Initialized = false;
+        internal static bool Initialized;
         public static void Initialize(ILoggerFactory? loggerFactory)
         {
             if (Initialized) return;
-            if (loggerFactory is null) throw new ArgumentNullException(nameof(loggerFactory));
+            ArgumentNullException.ThrowIfNull(loggerFactory, paramName: nameof(loggerFactory));
             LoggerFactory = loggerFactory;
             DebugLogQueue = new ConcurrentQueue<LogEventArgs>();
             DebugLogEvent += LogQueueHandlerAsync;
             Initialized = true;
         }
+
         public static ILoggerFactory? LoggerFactory { get; internal set; }
-        internal static event LogEventHandler? DebugLogEvent;
+        internal static event LogEvent? DebugLogEvent;
         internal static ConcurrentQueue<LogEventArgs>? DebugLogQueue { get; private set; }
         internal static async Task LogQueueHandlerAsync(object sender, LogEventArgs e)
         {
@@ -43,6 +44,6 @@ namespace LogViewer
         public static bool LogUTCTime { get; set; }
         public static bool IncludeTimestampInOutput { get; set; } = true;
         public static IReadOnlyCollection<char> ExcludeCharsFromName { get; set; } = ['.', '-'];
-        public static int MaxLogQueueSize { get; set; } = 20000;
+        public static int MaxLogQueueSize { get; set; } = 10000;
     }
 }

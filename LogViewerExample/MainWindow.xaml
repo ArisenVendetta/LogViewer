@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:LogViewerExample"
         xmlns:logger="clr-namespace:LogViewer;assembly=LogViewer"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="MainWindow" Height="650" Width="1000" Topmost="False">
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>

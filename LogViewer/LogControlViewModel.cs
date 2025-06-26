@@ -16,16 +16,17 @@ namespace LogViewer
     {
         private readonly Dispatcher _dispatcher;
         private string _logHandleFilter = ".*";
-        private bool _logHandleIgnoreCase = false;
-        private Regex _handleCheck = new Regex(".*");
+        private string _originalLogHandleFilter = "*";
+        private bool _logHandleIgnoreCase;
+        private Regex _handleCheck = new(".*");
         private bool disposedValue;
         private ILogger _logger;
-        private bool _isPaused = false;
-        private List<LogEventArgs> _pauseBuffer = new();
+        private bool _isPaused;
+        private List<LogEventArgs> _pauseBuffer = [];
         private object _pauseLock = new();
 
         public ILogger Logger => _logger ??= BaseLogger.LoggerFactory?.CreateLogger<LogControlViewModel>() ?? throw new InvalidOperationException($"Must call {nameof(BaseLogger)}.{nameof(BaseLogger.Initialize)} before creating an instance of {nameof(LogControlViewModel)}");
-        public LogCollection LogEvents { get; } = new();
+        public LogCollection LogEvents { get; } = [];
         public bool IsPaused
         {
             get => _isPaused;
@@ -53,6 +54,21 @@ namespace LogViewer
                 _logHandleIgnoreCase = value;
                 _handleCheck = new Regex(_logHandleFilter, _logHandleIgnoreCase ? RegexOptions.IgnoreCase : RegexOptions.None);
                 _ = UpdateVisibleLogsAsync();
+            }
+        }
+
+        public string OriginalLogHandleFilter
+        {
+            get => _originalLogHandleFilter;
+            set
+            {
+                if (string.IsNullOrWhiteSpace(value)) _originalLogHandleFilter = "*";
+                else _originalLogHandleFilter = value;
+
+                //sanitize the original log handle filter by removing excluded characters using the same process BaseLogger does
+                foreach (var c in BaseLogger.ExcludeCharsFromName.Union([' '])) _originalLogHandleFilter = _originalLogHandleFilter.Replace(c.ToString(), "").Trim();
+
+                LogHandleFilter = _originalLogHandleFilter;
             }
         }
 
@@ -127,7 +143,7 @@ namespace LogViewer
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error while clearing visible logs in LogControlViewModel.");
+                BaseLogger.LogErrorException(_logger, "Error while clearing visible logs in LogControlViewModel.", ex);
             }
         }
 
@@ -153,7 +169,7 @@ namespace LogViewer
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error while updating visible logs in LogControlViewModel.");
+                BaseLogger.LogErrorException(_logger, "Error while updating visible logs in LogControlViewModel.", ex);
             }
         }
 
@@ -196,7 +212,7 @@ namespace LogViewer
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error while adding and trimming log events in LogControlViewModel.");
+                BaseLogger.LogErrorException(_logger, "Error while adding and trimming log events in LogControlViewModel.", ex);
             }
             finally
             {

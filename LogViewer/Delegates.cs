@@ -6,5 +6,11 @@ using System.Threading.Tasks;
 
 namespace LogViewer
 {
-    public delegate Task LogEventHandler(object sender, LogEventArgs eventArgs);
+    /// <summary>
+    /// Represents a method that handles log events asynchronously.
+    /// </summary>
+    /// <param name="sender">The source of the log event.</param>
+    /// <param name="eventArgs">The event data containing details about the log event.</param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    public delegate Task LogEvent(object sender, LogEventArgs eventArgs);
 }

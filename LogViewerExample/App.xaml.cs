@@ -32,13 +32,19 @@ namespace LogViewerExample
             });
 
             BaseLogger.Initialize(_loggerFactory);
-            BaseLogger.MaxLogQueueSize = 5000;
         }
 
         private void Application_Exit(object sender, ExitEventArgs e)
         {
-            LogManager.Shutdown();
-            _loggerFactory?.Dispose();
+            try
+            {
+                _loggerFactory?.Dispose();
+                LogManager.Shutdown();
+            }
+            catch (Exception ex)
+            {
+                // swallow it, this is an example application and it's closing
+            }
         }
     }
 

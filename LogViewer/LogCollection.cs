@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using PropertyChanged;
 
 namespace LogViewer
 {
@@ -25,7 +26,8 @@ namespace LogViewer
             get { lock (_lockObject) { return _logs[index]; } }
             set
             {
-                if (value is null) throw new ArgumentNullException(nameof(value));
+                ArgumentNullException.ThrowIfNull(value, paramName: nameof(value));
+
                 bool added = false;
                 lock (_lockObject)
                 {
@@ -48,7 +50,7 @@ namespace LogViewer
 
         public bool Add(LogEventArgs logEvent)
         {
-            if (logEvent is null) throw new ArgumentNullException(nameof(logEvent));
+            ArgumentNullException.ThrowIfNull(logEvent, paramName: nameof(logEvent));
 
             bool added = false;
             lock (_lockObject)
@@ -65,10 +67,11 @@ namespace LogViewer
 
         public int AddRange(IEnumerable<LogEventArgs> logEvents)
         {
-            if (logEvents is null) throw new ArgumentNullException(nameof(logEvents));
+            ArgumentNullException.ThrowIfNull(logEvents, paramName: nameof(logEvents));
 
             bool added = false;
             List<LogEventArgs> addedEvents = [];
+            int startIndex = _logs.Count;
             lock (_lockObject)
             {
                 foreach (var logEvent in logEvents)
@@ -79,17 +82,18 @@ namespace LogViewer
                         added = true;
                     }
                 }
+
                 if (added)
                     _logs.AddRange(addedEvents);
             }
             if (added)
-                OnCollectionChanged(NotifyCollectionChangedAction.Add, addedEvents);
+                OnCollectionChanged(NotifyCollectionChangedAction.Add, addedEvents, startIndex);
             return addedEvents.Count;
         }
 
         public bool Remove(LogEventArgs logEvent)
         {
-            if (logEvent is null) throw new ArgumentNullException(nameof(logEvent));
+            ArgumentNullException.ThrowIfNull(logEvent, paramName: nameof(logEvent));
 
             bool removed = false;
             lock (_lockObject)
@@ -111,8 +115,10 @@ namespace LogViewer
 
         public int RemoveRange(int startIndex, int count)
         {
-            if (startIndex < 0 || count < 0)
-                throw new ArgumentOutOfRangeException("Invalid range specified for removal.");
+            if (startIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(startIndex), "Invalid starting index specified for removal");
+            if (count < 0)
+                throw new ArgumentOutOfRangeException(nameof(count), "Count must be non-negative");
 
             List<LogEventArgs> itemsToRemove = [];
             lock (_lockObject)
@@ -128,34 +134,8 @@ namespace LogViewer
                 }
             }
             if (itemsToRemove.Count > 0)
-                OnCollectionChanged(NotifyCollectionChangedAction.Remove, itemsToRemove);
+                OnCollectionChanged(NotifyCollectionChangedAction.Remove, itemsToRemove, startIndex);
             return itemsToRemove.Count;
-        }
-
-        public int RemoveRange(IEnumerable<LogEventArgs> logEvents)
-        {
-            if (logEvents is null) throw new ArgumentNullException(nameof(logEvents));
-
-            List<LogEventArgs> removedEvents = [];
-            lock (_lockObject)
-            {
-                foreach (var logEvent in logEvents)
-                {
-                    if (_logSet.Remove(logEvent))
-                        removedEvents.Add(logEvent);
-                }
-                if (removedEvents.Count > 0)
-                {
-                    foreach (var item in removedEvents)
-                    {
-                        int index = _logs.IndexOf(item);
-                        if (index >= 0) _logs.RemoveAt(index);
-                    }
-                }
-            }
-            if (removedEvents.Count > 0)
-                OnCollectionChanged(NotifyCollectionChangedAction.Remove, removedEvents);
-            return removedEvents.Count;
         }
 
         public void Clear()
@@ -168,6 +148,7 @@ namespace LogViewer
             OnCollectionChanged(NotifyCollectionChangedAction.Reset);
         }
 
+        [SuppressPropertyChangedWarnings]
         protected void OnCollectionChanged(NotifyCollectionChangedAction action)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Items)));
@@ -175,6 +156,7 @@ namespace LogViewer
             CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(action));
         }
 
+        [SuppressPropertyChangedWarnings]
         protected void OnCollectionChanged(NotifyCollectionChangedAction action, object? item = null, int index = -1)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Items)));
@@ -182,11 +164,12 @@ namespace LogViewer
             CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(action, changedItem: item, index: index));
         }
 
-        protected void OnCollectionChanged(NotifyCollectionChangedAction action, IList? items = null)
+        [SuppressPropertyChangedWarnings]
+        protected void OnCollectionChanged(NotifyCollectionChangedAction action, IList? items = null, int index = -1)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Count)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Items)));
-            CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(action, changedItems: items));
+            CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(action, changedItems: items, index));
         }
 
         public int IndexOf(LogEventArgs item) => _logs.IndexOf(item);
@@ -232,7 +215,7 @@ namespace LogViewer
 
         public void CopyTo(LogEventArgs[] array, int arrayIndex)
         {
-            if (array is null) throw new ArgumentNullException(nameof(array));
+            ArgumentNullException.ThrowIfNull(array, paramName: nameof(array));
 
             if (arrayIndex < 0 || arrayIndex + _logs.Count > array.Length)
                 throw new ArgumentOutOfRangeException(nameof(arrayIndex), "Array index is out of range.");

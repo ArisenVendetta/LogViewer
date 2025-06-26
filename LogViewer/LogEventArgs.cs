@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -14,24 +15,24 @@ namespace LogViewer
         public Color LogColor { get; } = color;
         public string LogText { get; } = message ?? throw new ArgumentNullException(nameof(message));
         public DateTime LogDateTime { get; init; }
-        public string LogDateTimeFormatted => LogDateTime.ToString(BaseLogger.LogDateTimeFormat);
+        public string LogDateTimeFormatted => LogDateTime.ToString(BaseLogger.LogDateTimeFormat, CultureInfo.InvariantCulture);
         public LogLevel LogLevel { get; } = level;
-        public Guid Guid { get; } = Guid.NewGuid();
+        public Guid ID { get; } = Guid.NewGuid();
 
         public (string Timestamp, string LogHandle, string Body) GetLogMessageParts()
         {
-            return ($"{LogDateTime.ToString(BaseLogger.LogDateTimeFormat)}", LogHandle, LogText);
+            return ($"{LogDateTime.ToString(BaseLogger.LogDateTimeFormat, CultureInfo.InvariantCulture)}", LogHandle, LogText);
         }
 
         public override string ToString()
         {
-            return $"{LogDateTime.ToString(BaseLogger.LogDateTimeFormat)} [{LogHandle}] {LogText}";
+            return $"{LogDateTime.ToString(BaseLogger.LogDateTimeFormat, CultureInfo.InvariantCulture)} [{LogHandle}] {LogText}";
         }
 
         public bool Equals(LogEventArgs? other)
         {
             if (other is null) return false;
-            return Guid == other.Guid;
+            return ID == other.ID;
         }
 
         public override bool Equals(object? obj)
@@ -40,6 +41,6 @@ namespace LogViewer
             return Equals(obj as LogEventArgs);
         }
 
-        public override int GetHashCode() => Guid.GetHashCode();
+        public override int GetHashCode() => ID.GetHashCode();
     }
 }

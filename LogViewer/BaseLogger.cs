@@ -13,6 +13,39 @@ namespace LogViewer
     /// </summary>
     public abstract partial class BaseLogger : ILoggable
     {
+        internal static readonly Action<ILogger, string, Exception?> LogTraceMessage = LoggerMessage.Define<string>(LogLevel.Trace, new EventId(0, nameof(LogTrace)), "{Message}");
+        internal static readonly Action<ILogger, string, Exception?> LogDebugMessage = LoggerMessage.Define<string>(LogLevel.Debug, new EventId(1, nameof(LogDebug)), "{Message}");
+        internal static readonly Action<ILogger, string, Exception?> LogInfoMessage = LoggerMessage.Define<string>(LogLevel.Information, new EventId(2, nameof(LogInfo)), "{Message}");
+        internal static readonly Action<ILogger, string, Exception?> LogWarningMessage = LoggerMessage.Define<string>(LogLevel.Warning, new EventId(3, nameof(LogWarning)), "{Message}");
+        internal static readonly Action<ILogger, string, Exception?> LogErrorMessage = LoggerMessage.Define<string>(LogLevel.Error, new EventId(4, nameof(LogError)), "{Message}");
+        internal static readonly Action<ILogger, string, Exception?> LogCriticalMessage = LoggerMessage.Define<string>(LogLevel.Critical, new EventId(5, nameof(LogCritical)), "{Message}");
+        internal static readonly Action<ILogger, string, Exception?> LogTraceException = LoggerMessage.Define<string>(LogLevel.Trace, new EventId(100, nameof(LogTrace)), "{Message}");
+        internal static readonly Action<ILogger, string, Exception?> LogDebugException = LoggerMessage.Define<string>(LogLevel.Debug, new EventId(101, nameof(LogDebug)), "{Message}");
+        internal static readonly Action<ILogger, string, Exception?> LogInfoException = LoggerMessage.Define<string>(LogLevel.Information, new EventId(102, nameof(LogInfo)), "{Message}");
+        internal static readonly Action<ILogger, string, Exception?> LogWarningException = LoggerMessage.Define<string>(LogLevel.Warning, new EventId(103, nameof(LogWarning)), "{Message}");
+        internal static readonly Action<ILogger, string, Exception?> LogErrorException = LoggerMessage.Define<string>(LogLevel.Error, new EventId(104, nameof(LogError)), "{Message}");
+        internal static readonly Action<ILogger, string, Exception?> LogCriticalException = LoggerMessage.Define<string>(LogLevel.Critical, new EventId(105, nameof(LogCritical)), "{Message}");
+
+        private static readonly Dictionary<LogLevel, Action<ILogger, string, Exception?>> _logActions = new()
+        {
+            { LogLevel.Trace, LogTraceMessage },
+            { LogLevel.Debug, LogDebugMessage },
+            { LogLevel.Information, LogInfoMessage },
+            { LogLevel.Warning, LogWarningMessage },
+            { LogLevel.Error, LogErrorMessage },
+            { LogLevel.Critical, LogCriticalMessage }
+        };
+
+        private static readonly Dictionary<LogLevel, Action<ILogger, string, Exception?>> _logExceptionActions = new()
+        {
+            { LogLevel.Trace, LogTraceException },
+            { LogLevel.Debug, LogDebugException },
+            { LogLevel.Information, LogInfoException },
+            { LogLevel.Warning, LogWarningException },
+            { LogLevel.Error, LogErrorException },
+            { LogLevel.Critical, LogCriticalException }
+        };
+
         protected BaseLogger(string? handle = null, Color? color = null, LogLevel logLevel = LogLevel.Information)
         {
             if (LoggerFactory is null) throw new InvalidOperationException($"Must call {nameof(BaseLogger)}.{nameof(Initialize)} before creating an instance of {nameof(BaseLogger)}");
@@ -32,18 +65,22 @@ namespace LogViewer
         public ILogger Logger { get; }
         public LogLevel LogLevel { get; } = LogLevel.Information;
 
-        public event LogEventHandler? LogEvent;
+        public event LogEvent? LogEvent;
 
         public void Log(LogLevel level, string message)
         {
             if (message is null) return;
+            if (!_logActions.TryGetValue(level, out var logAction))
+            {
+                logAction = LogInfoMessage; // default to Information level if the level is not recognized
+            }
 
             var args = new LogEventArgs(level, LogHandle, message, LogColor)
             {
                 LogDateTime = LogUTCTime ? DateTime.Now.ToUniversalTime() : DateTime.Now.ToLocalTime()
             };
 
-            Logger.Log(level, args.LogText);
+            logAction(Logger, args.LogText, null);
 
             OnLogEvent(args); // this should never raise an exception, everything is caught/logged within that method if there is an error
         }
@@ -64,7 +101,7 @@ namespace LogViewer
             }
             catch (Exception ex)
             {
-                Logger?.LogError(ex, $"Error when attempting to log iterable of type: {typeof(T).Name}");
+                LogErrorException(Logger, $"Error when attempting to log iterable of type: {typeof(T).Name}", ex);
             }
         }
 
@@ -83,7 +120,7 @@ namespace LogViewer
             }
             catch (Exception ex)
             {
-                Logger?.LogError(ex, $"Error when attempting to log dictionary of types - Key: {typeof(TKey).Name}, Value: {typeof(TValue).Name}");
+                LogErrorException(Logger, $"Error when attempting to log dictionary of types - Key: {typeof(TKey).Name}, Value: {typeof(TValue).Name}", ex);
             }
         }
 
@@ -115,8 +152,13 @@ namespace LogViewer
         public void LogException(Exception exception, string? headerMessage, LogLevel logLevel = LogLevel.Error)
         {
             if (exception is null) return;
+            if (!_logExceptionActions.TryGetValue(logLevel, out var logAction))
+            {
+                logAction = LogErrorException; // default to Error level if the level is not recognized
+            }
 
-            string message = string.IsNullOrWhiteSpace(headerMessage) ? "Exception occured:" : headerMessage;
+            headerMessage ??= "Exception occured:";
+            string message = headerMessage;
             message += $"{Environment.NewLine}{exception}";
 
             var args = new LogEventArgs(logLevel, LogHandle, message, LogColor)
@@ -124,14 +166,14 @@ namespace LogViewer
                 LogDateTime = LogUTCTime ? DateTime.Now.ToUniversalTime() : DateTime.Now.ToLocalTime()
             };
 
-            Logger.Log(logLevel: logLevel, exception: exception, message: args.LogText);
+            logAction(Logger, headerMessage, exception);
 
             OnLogEvent(args); // this should never raise an exception, everything is caught/logged within that method if there is an error
         }
         public void LogException(Exception exception) => LogException(exception, null, LogLevel.Error);
 
 
-        public LogEventHandler? SubscribeLogEventSync(Action<object, LogEventArgs> handler)
+        public LogEvent? SubscribeLogEventSync(Action<object, LogEventArgs> handler)
         {
             if (handler is null) return null;
 
@@ -146,9 +188,10 @@ namespace LogViewer
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1229:Use async/await when necessary", Justification = "Awaiting all tasks after select statement, need to trigger all invokers without delay")]
-        private async Task OnRaiseLogEventAsync(LogEventHandler? logEvent, LogEventArgs eventArgs)
+        private async Task OnRaiseLogEventAsync(LogEvent? logEvent, LogEventArgs eventArgs)
         {
-            if (eventArgs is null) throw new ArgumentNullException(nameof(eventArgs));
+            ArgumentNullException.ThrowIfNull(eventArgs, paramName: nameof(eventArgs));
+
             var localEvent = logEvent;
             if (localEvent is null) return;
 
@@ -157,7 +200,7 @@ namespace LogViewer
                 var handlers = localEvent.GetInvocationList();
                 if (handlers is null) return;
 
-                var tasks = handlers.Cast<LogEventHandler>()
+                var tasks = handlers.Cast<LogEvent>()
                                     .Select(handler =>
                 {
                     try
@@ -174,7 +217,7 @@ namespace LogViewer
             }
             catch (Exception ex)
             {
-                Logger?.LogError(ex, "Error when trying to raise log event, one or more subscribers failed");
+                LogErrorException(Logger, "Error when trying to raise log event, one or more subscribers failed", ex);
             }
         }
 
