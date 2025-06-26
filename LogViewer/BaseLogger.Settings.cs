@@ -10,8 +10,9 @@ namespace LogViewer
 {
     public abstract partial class BaseLogger
     {
+        const string DefaultLogDateTimeFormat = "yyyy-MM-dd HH:mm:ss.fff (zzz)";
         internal static bool Initialized;
-        public static void Initialize(ILoggerFactory? loggerFactory)
+        public static void Initialize(ILoggerFactory? loggerFactory, int maxLogQueueSize = 10000, string logDateTimeFormat = "yyyy-MM-dd HH:mm:ss.fff (zzz)")
         {
             if (Initialized) return;
             ArgumentNullException.ThrowIfNull(loggerFactory, paramName: nameof(loggerFactory));
@@ -19,6 +20,8 @@ namespace LogViewer
             DebugLogQueue = new ConcurrentQueue<LogEventArgs>();
             DebugLogEvent += LogQueueHandlerAsync;
             Initialized = true;
+            MaxLogQueueSize = maxLogQueueSize;
+            LogDateTimeFormat = string.IsNullOrWhiteSpace(logDateTimeFormat) ? DefaultLogDateTimeFormat : logDateTimeFormat;
         }
 
         public static ILoggerFactory? LoggerFactory { get; internal set; }
@@ -40,7 +43,7 @@ namespace LogViewer
 
         public static Version Version { get; } = typeof(BaseLogger).Assembly.GetName().Version ?? new Version(1, 0, 0, 0);
 
-        public static string LogDateTimeFormat { get; set; } = "yyyy-MM-dd HH:mm:ss.fff (zzz)";
+        public static string LogDateTimeFormat { get; set; } = DefaultLogDateTimeFormat;
         public static bool LogUTCTime { get; set; }
         public static bool IncludeTimestampInOutput { get; set; } = true;
         public static IReadOnlyCollection<char> ExcludeCharsFromHandle { get; set; } = ['.', '-'];
