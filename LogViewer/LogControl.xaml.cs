@@ -19,15 +19,23 @@ using Microsoft.Extensions.Logging;
 namespace LogViewer
 {
     /// <summary>
-    /// Interaction logic for LogControl.xaml
+    /// Interaction logic for LogControl.xaml.
+    /// Provides a WPF UserControl for displaying and managing real-time log events.
     /// </summary>
     public partial class LogControl : UserControl, IDisposable
     {
+        /// <summary>
+        /// The view model backing this control, responsible for log data and state.
+        /// </summary>
         private readonly LogControlViewModel _viewModel;
 
         private bool _disposedValue;
         private ScrollViewer? _scrollViewer;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="LogControl"/> class.
+        /// Sets up data context, event handlers, and auto-scroll behavior.
+        /// </summary>
         public LogControl()
         {
             InitializeComponent();
@@ -38,13 +46,16 @@ namespace LogViewer
             {
                 if (_viewModel.IsPaused) return;
 
+                // Auto-scroll to the end when new log events are added, unless paused.
                 if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add)
                 {
+                    // Lazily find the ScrollViewer for the log list if not already found.
                     if (_scrollViewer is null)
                         _scrollViewer = GetScrollViewer(__logList);
 
                     if (_scrollViewer is not null)
                     {
+                        // Scroll to the end on the UI thread at background priority.
                         Dispatcher.InvokeAsync(() =>
                         {
                             _scrollViewer.ScrollToEnd();
@@ -54,11 +65,17 @@ namespace LogViewer
             };
         }
 
+        /// <summary>
+        /// Handles the Unloaded event for the control, ensuring resources are disposed.
+        /// </summary>
         private void LogViewer_Unloaded(object sender, RoutedEventArgs e)
         {
             _viewModel?.Dispose();
         }
 
+        /// <summary>
+        /// Handles the mouse down event for the "Clear" button, clearing all logs asynchronously.
+        /// </summary>
         private async void Clear_PreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
             try
@@ -67,16 +84,26 @@ namespace LogViewer
             }
             catch (Exception ex)
             {
+                // Log any error that occurs during log clearing.
                 BaseLogger.LogErrorException(_viewModel.Logger, "Error while clearing logs in LogControl.", ex);
             }
         }
 
+        /// <summary>
+        /// Handles the mouse down event for the "Pause" button, toggling pause/resume state.
+        /// </summary>
         private void Pause_PreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
             _viewModel.IsPaused = !_viewModel.IsPaused;
+            // Update the button content to reflect the new state.
             __pauseButton.Content = _viewModel.IsPaused ? "Resume" : "Pause";
         }
 
+        /// <summary>
+        /// Recursively searches for a <see cref="ScrollViewer"/> in the visual tree of the given dependency object.
+        /// </summary>
+        /// <param name="depObj">The root element to search from.</param>
+        /// <returns>The first <see cref="ScrollViewer"/> found, or null if none exists.</returns>
         private static ScrollViewer? GetScrollViewer(DependencyObject depObj)
         {
             if (depObj is null) return null;

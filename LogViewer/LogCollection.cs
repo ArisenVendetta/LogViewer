@@ -5,22 +5,44 @@ using PropertyChanged;
 
 namespace LogViewer
 {
+    /// <summary>
+    /// Represents a thread-safe, observable collection of <see cref="LogEventArgs"/> for use in log viewers and data-bound UIs.
+    /// Supports fast lookup, duplicate prevention, and notifies listeners of changes.
+    /// </summary>
     public class LogCollection : INotifyCollectionChanged, INotifyPropertyChanged, IList<LogEventArgs>
     {
+        /// <inheritdoc/>
         public event NotifyCollectionChangedEventHandler? CollectionChanged;
+        /// <inheritdoc/>
         public event PropertyChangedEventHandler? PropertyChanged;
 
+        /// <summary>
+        /// Gets the number of log entries in the collection.
+        /// </summary>
         public int Count
         {
             get { lock (_lockObject) { return _logs.Count; } }
         }
+        /// <summary>
+        /// Gets a snapshot of the log entries in the collection.
+        /// </summary>
         public IEnumerable<LogEventArgs> Items
         {
             get { lock (_lockObject) { return new List<LogEventArgs>(_logs); } }
         }
 
+        /// <summary>
+        /// Gets a value indicating whether the collection is read-only. Always returns false.
+        /// </summary>
         public bool IsReadOnly => false;
 
+        /// <summary>
+        /// Gets or sets the <see cref="LogEventArgs"/> at the specified index.
+        /// Setting an item replaces it only if it is not already present in the collection.
+        /// </summary>
+        /// <param name="index">The zero-based index of the element to get or set.</param>
+        /// <exception cref="ArgumentNullException">Thrown if value being assigned is null</exception>
+        /// <exception cref="InvalidOperationException">Thrown if the item already exists in the collection.</exception>
         public LogEventArgs this[int index]
         {
             get { lock (_lockObject) { return _logs[index]; } }
@@ -31,6 +53,7 @@ namespace LogViewer
                 bool added = false;
                 lock (_lockObject)
                 {
+                    // Only allow replacement if the new value is not already present
                     if (_logSet.Add(value))
                     {
                         _logs[index] = value;
@@ -44,10 +67,17 @@ namespace LogViewer
             }
         }
 
-        private List<LogEventArgs> _logs = [];
-        private HashSet<LogEventArgs> _logSet = new();
-        private object _lockObject = new();
+        // Internal storage for log entries and fast lookup.
+        private readonly List<LogEventArgs> _logs = [];
+        private readonly HashSet<LogEventArgs> _logSet = [];
+        private readonly object _lockObject = new();
 
+        /// <summary>
+        /// Adds a log event to the collection if it does not already exist.
+        /// </summary>
+        /// <param name="logEvent">The log event to add.</param>
+        /// <returns>True if the log event was added; false if it was a duplicate.</returns>
+        /// <exception cref="ArgumentNullException">Thrown if the logEvent is null.</exception>
         public bool Add(LogEventArgs logEvent)
         {
             ArgumentNullException.ThrowIfNull(logEvent, paramName: nameof(logEvent));
@@ -65,6 +95,12 @@ namespace LogViewer
             return added;
         }
 
+        /// <summary>
+        /// Adds a range of log events to the collection, skipping duplicates.
+        /// </summary>
+        /// <param name="logEvents">The log events to add.</param>
+        /// <returns>The number of log events actually added.</returns>
+        /// <exception cref="ArgumentNullException">Thrown if the logEvents or one of it's elements are null.</exception>
         public int AddRange(IEnumerable<LogEventArgs> logEvents)
         {
             ArgumentNullException.ThrowIfNull(logEvents, paramName: nameof(logEvents));
@@ -76,6 +112,7 @@ namespace LogViewer
             {
                 foreach (var logEvent in logEvents)
                 {
+                    ArgumentNullException.ThrowIfNull(logEvent, paramName: nameof(logEvent));
                     if (_logSet.Add(logEvent))
                     {
                         addedEvents.Add(logEvent);
@@ -91,6 +128,12 @@ namespace LogViewer
             return addedEvents.Count;
         }
 
+        /// <summary>
+        /// Removes a log event from the collection.
+        /// </summary>
+        /// <param name="logEvent">The log event to remove.</param>
+        /// <returns>True if the log event was removed; false if it was not found.</returns>
+        /// <exception cref="ArgumentNullException">Thrown if the logEvent is null.</exception>
         public bool Remove(LogEventArgs logEvent)
         {
             ArgumentNullException.ThrowIfNull(logEvent, paramName: nameof(logEvent));
@@ -113,6 +156,13 @@ namespace LogViewer
             return removed;
         }
 
+        /// <summary>
+        /// Removes a range of log events from the collection, starting at the specified index.
+        /// </summary>
+        /// <param name="startIndex">The zero-based starting index.</param>
+        /// <param name="count">The number of items to remove. Removal stops when collection is empty if count exceeds total elements.</param>
+        /// <returns>The number of items actually removed.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown if startIndex or count is negative.</exception>
         public int RemoveRange(int startIndex, int count)
         {
             if (startIndex < 0)
@@ -138,6 +188,9 @@ namespace LogViewer
             return itemsToRemove.Count;
         }
 
+        /// <summary>
+        /// Removes all log events from the collection.
+        /// </summary>
         public void Clear()
         {
             lock (_lockObject)
@@ -148,6 +201,10 @@ namespace LogViewer
             OnCollectionChanged(NotifyCollectionChangedAction.Reset);
         }
 
+        /// <summary>
+        /// Raises collection and property changed events for a collection change.
+        /// </summary>
+        /// <param name="action">The type of change that occurred.</param>
         [SuppressPropertyChangedWarnings]
         protected void OnCollectionChanged(NotifyCollectionChangedAction action)
         {
@@ -156,6 +213,12 @@ namespace LogViewer
             CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(action));
         }
 
+        /// <summary>
+        /// Raises collection and property changed events for a collection change involving a single item.
+        /// </summary>
+        /// <param name="action">The type of change that occurred.</param>
+        /// <param name="item">The item involved in the change.</param>
+        /// <param name="index">The index at which the change occurred.</param>
         [SuppressPropertyChangedWarnings]
         protected void OnCollectionChanged(NotifyCollectionChangedAction action, object? item = null, int index = -1)
         {
@@ -164,6 +227,12 @@ namespace LogViewer
             CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(action, changedItem: item, index: index));
         }
 
+        /// <summary>
+        /// Raises collection and property changed events for a collection change involving multiple items.
+        /// </summary>
+        /// <param name="action">The type of change that occurred.</param>
+        /// <param name="items">The items involved in the change.</param>
+        /// <param name="index">The index at which the change occurred.</param>
         [SuppressPropertyChangedWarnings]
         protected void OnCollectionChanged(NotifyCollectionChangedAction action, IList? items = null, int index = -1)
         {
@@ -172,8 +241,17 @@ namespace LogViewer
             CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(action, changedItems: items, index));
         }
 
+        /// <summary>
+        /// Returns the index of the specified log event in the collection.
+        /// </summary>
         public int IndexOf(LogEventArgs item) => _logs.IndexOf(item);
 
+        /// <summary>
+        /// Inserts a log event at the specified index if it does not already exist.
+        /// </summary>
+        /// <param name="index">The zero-based index at which to insert the item.</param>
+        /// <param name="item">The log event to insert.</param>
+        /// <exception cref="InvalidOperationException">Thrown if the item already exists in the collection.</exception>
         public void Insert(int index, LogEventArgs item)
         {
             bool added = false;
@@ -189,6 +267,12 @@ namespace LogViewer
                 throw new InvalidOperationException("Item already exists in the collection.");
         }
 
+        /// <summary>
+        /// Removes the log event at the specified index.
+        /// </summary>
+        /// <param name="index">The zero-based index of the item to remove.</param>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown if the index is out of range.</exception>
+        /// <exception cref="InvalidOperationException">Thrown if the item is not found in the collection.</exception>
         public void RemoveAt(int index)
         {
             if (index < 0 || index >= _logs.Count)
@@ -209,10 +293,20 @@ namespace LogViewer
                 throw new InvalidOperationException("Item not found in the collection.");
         }
 
+        // Explicit interface implementation for ICollection<T>.Add
         void ICollection<LogEventArgs>.Add(LogEventArgs item) => Add(item);
 
+        /// <summary>
+        /// Determines whether the collection contains the specified log event.
+        /// </summary>
         public bool Contains(LogEventArgs item) => _logSet.Contains(item);
 
+        /// <summary>
+        /// Copies the elements of the collection to an array, starting at the specified array index.
+        /// </summary>
+        /// <param name="array">The destination array.</param>
+        /// <param name="arrayIndex">The zero-based index in the array at which copying begins.</param>
+        /// <exception cref="ArgumentNullException">Thrown if the logEvent is null.</exception>
         public void CopyTo(LogEventArgs[] array, int arrayIndex)
         {
             ArgumentNullException.ThrowIfNull(array, paramName: nameof(array));
@@ -226,6 +320,9 @@ namespace LogViewer
             }
         }
 
+        /// <summary>
+        /// Returns an enumerator that iterates through a snapshot of the collection.
+        /// </summary>
         public IEnumerator<LogEventArgs> GetEnumerator()
         {
             List<LogEventArgs> snapshot;

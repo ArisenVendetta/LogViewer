@@ -32,6 +32,8 @@ namespace LogViewerExample
             });
 
             BaseLogger.Initialize(_loggerFactory);
+            BaseLogger.LogUTCTime = false;
+            BaseLogger.LogDateTimeFormat = "o";
         }
 
         private void Application_Exit(object sender, ExitEventArgs e)
@@ -41,7 +43,7 @@ namespace LogViewerExample
                 _loggerFactory?.Dispose();
                 LogManager.Shutdown();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // swallow it, this is an example application and it's closing
             }

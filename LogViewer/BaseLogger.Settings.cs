@@ -43,7 +43,7 @@ namespace LogViewer
         public static string LogDateTimeFormat { get; set; } = "yyyy-MM-dd HH:mm:ss.fff (zzz)";
         public static bool LogUTCTime { get; set; }
         public static bool IncludeTimestampInOutput { get; set; } = true;
-        public static IReadOnlyCollection<char> ExcludeCharsFromName { get; set; } = ['.', '-'];
+        public static IReadOnlyCollection<char> ExcludeCharsFromHandle { get; set; } = ['.', '-'];
         public static int MaxLogQueueSize { get; set; } = 10000;
     }
 }

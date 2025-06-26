@@ -9,24 +9,65 @@ using Microsoft.Extensions.Logging;
 namespace LogViewer
 {
     /// <summary>
-    /// Base class for providing logging functionality, routing all log messages to a central real-time log viewer
+    /// Provides a base class for logging functionality, routing all log messages to a central real-time log viewer.
+    /// Implements <see cref="ILoggable"/> and supports structured, color-coded, and event-driven logging.
     /// </summary>
     public abstract partial class BaseLogger : ILoggable
     {
+        /// <summary>
+        /// Predefined logging actions for trace-level messages.
+        /// </summary>
         internal static readonly Action<ILogger, string, Exception?> LogTraceMessage = LoggerMessage.Define<string>(LogLevel.Trace, new EventId(0, nameof(LogTrace)), "{Message}");
+        /// <summary>
+        /// Predefined logging actions for debug-level messages.
+        /// </summary>
         internal static readonly Action<ILogger, string, Exception?> LogDebugMessage = LoggerMessage.Define<string>(LogLevel.Debug, new EventId(1, nameof(LogDebug)), "{Message}");
+        /// <summary>
+        /// Predefined logging actions for information-level messages.
+        /// </summary>
         internal static readonly Action<ILogger, string, Exception?> LogInfoMessage = LoggerMessage.Define<string>(LogLevel.Information, new EventId(2, nameof(LogInfo)), "{Message}");
+        /// <summary>
+        /// Predefined logging actions for warning-level messages.
+        /// </summary>
         internal static readonly Action<ILogger, string, Exception?> LogWarningMessage = LoggerMessage.Define<string>(LogLevel.Warning, new EventId(3, nameof(LogWarning)), "{Message}");
+        /// <summary>
+        /// Predefined logging actions for error-level messages.
+        /// </summary>
         internal static readonly Action<ILogger, string, Exception?> LogErrorMessage = LoggerMessage.Define<string>(LogLevel.Error, new EventId(4, nameof(LogError)), "{Message}");
+        /// <summary>
+        /// Predefined logging actions for critical-level messages.
+        /// </summary>
         internal static readonly Action<ILogger, string, Exception?> LogCriticalMessage = LoggerMessage.Define<string>(LogLevel.Critical, new EventId(5, nameof(LogCritical)), "{Message}");
+
+        /// <summary>
+        /// Predefined logging actions for trace-level exceptions.
+        /// </summary>
         internal static readonly Action<ILogger, string, Exception?> LogTraceException = LoggerMessage.Define<string>(LogLevel.Trace, new EventId(100, nameof(LogTrace)), "{Message}");
+        /// <summary>
+        /// Predefined logging actions for debug-level exceptions.
+        /// </summary>
         internal static readonly Action<ILogger, string, Exception?> LogDebugException = LoggerMessage.Define<string>(LogLevel.Debug, new EventId(101, nameof(LogDebug)), "{Message}");
+        /// <summary>
+        /// Predefined logging actions for information-level exceptions.
+        /// </summary>
         internal static readonly Action<ILogger, string, Exception?> LogInfoException = LoggerMessage.Define<string>(LogLevel.Information, new EventId(102, nameof(LogInfo)), "{Message}");
+        /// <summary>
+        /// Predefined logging actions for warning-level exceptions.
+        /// </summary>
         internal static readonly Action<ILogger, string, Exception?> LogWarningException = LoggerMessage.Define<string>(LogLevel.Warning, new EventId(103, nameof(LogWarning)), "{Message}");
+        /// <summary>
+        /// Predefined logging actions for error-level exceptions.
+        /// </summary>
         internal static readonly Action<ILogger, string, Exception?> LogErrorException = LoggerMessage.Define<string>(LogLevel.Error, new EventId(104, nameof(LogError)), "{Message}");
+        /// <summary>
+        /// Predefined logging actions for critical-level exceptions.
+        /// </summary>
         internal static readonly Action<ILogger, string, Exception?> LogCriticalException = LoggerMessage.Define<string>(LogLevel.Critical, new EventId(105, nameof(LogCritical)), "{Message}");
 
-        private static readonly Dictionary<LogLevel, Action<ILogger, string, Exception?>> _logActions = new()
+        /// <summary>
+        /// Maps <see cref="LogLevel"/> values to their corresponding log message actions.
+        /// </summary>
+        internal static readonly Dictionary<LogLevel, Action<ILogger, string, Exception?>> LogActions = new()
         {
             { LogLevel.Trace, LogTraceMessage },
             { LogLevel.Debug, LogDebugMessage },
@@ -35,8 +76,10 @@ namespace LogViewer
             { LogLevel.Error, LogErrorMessage },
             { LogLevel.Critical, LogCriticalMessage }
         };
-
-        private static readonly Dictionary<LogLevel, Action<ILogger, string, Exception?>> _logExceptionActions = new()
+        /// <summary>
+        /// Maps <see cref="LogLevel"/> values to their corresponding exception log actions.
+        /// </summary>
+        internal static readonly Dictionary<LogLevel, Action<ILogger, string, Exception?>> LogExceptionActions = new()
         {
             { LogLevel.Trace, LogTraceException },
             { LogLevel.Debug, LogDebugException },
@@ -46,33 +89,70 @@ namespace LogViewer
             { LogLevel.Critical, LogCriticalException }
         };
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="BaseLogger"/> class.
+        /// </summary>
+        /// <param name="handle">Optional log handle (name) for this logger. If null, the type name is used.</param>
+        /// <param name="color">Optional color to associate with this logger. Defaults to black.</param>
+        /// <param name="logLevel">The minimum <see cref="LogLevel"/> for this logger. Defaults to Information.</param>
+        /// <exception cref="InvalidOperationException">Thrown if <c>LoggerFactory</c> is not initialized before instantiation.</exception>
         protected BaseLogger(string? handle = null, Color? color = null, LogLevel logLevel = LogLevel.Information)
         {
             if (LoggerFactory is null) throw new InvalidOperationException($"Must call {nameof(BaseLogger)}.{nameof(Initialize)} before creating an instance of {nameof(BaseLogger)}");
-            if (ExcludeCharsFromName is null) ExcludeCharsFromName = [];
 
+            // if for some reason this was set to null because someone wanted to not exclude anything, we reset it to an empty array which means no characters are excluded
+            if (ExcludeCharsFromHandle is null) ExcludeCharsFromHandle = [];
+
+            // sanitize the handle by removing unwanted characters and trimming whitespace
+            // consumers of the code should be setting any characters they want to exclude in the static property BaseLogger.ExcludeCharsFromHandle
             string sanitizedHandle = handle ?? GetType().Name;
-            foreach (var c in ExcludeCharsFromName.Union([' '])) sanitizedHandle = sanitizedHandle.Replace(c.ToString(), "").Trim();
+            foreach (var c in ExcludeCharsFromHandle.Union([' '])) sanitizedHandle = sanitizedHandle.Replace(c.ToString(), "").Trim();
             LogHandle = sanitizedHandle;
             LogColor = color ?? Colors.Black;
             LogLevel = logLevel;
 
+            // create the logger using the sanitized handle
             Logger = LoggerFactory.CreateLogger(LogHandle);
         }
 
+        /// <summary>
+        /// Gets the handle (name) for this logger instance.
+        /// </summary>
         public string LogHandle { get; }
+        /// <summary>
+        /// Gets or sets the color associated with this logger instance.
+        /// </summary>
         public Color LogColor { get; set; }
+        /// <summary>
+        /// Gets the underlying <see cref="ILogger"/> instance used for logging.
+        /// </summary>
         public ILogger Logger { get; }
+        /// <summary>
+        /// Gets the minimum <see cref="LogLevel"/> for this logger instance.
+        /// </summary>
+        /// <remarks>
+        /// Not Implemented yet - Intent is to use this property to filter it's own log messages in the viewer. For example, if this base logger is set to <see cref="LogLevel.Warning"/>, we don't want to see the messages but we still want them logged.
+        /// </remarks>
         public LogLevel LogLevel { get; } = LogLevel.Information;
 
+        /// <summary>
+        /// Occurs when a log event is raised, allowing subscribers to receive log messages in real time.
+        /// </summary>
         public event LogEvent? LogEvent;
 
+        /// <summary>
+        /// Logs a message at the specified <see cref="LogLevel"/>.
+        /// </summary>
+        /// <param name="level">The severity level of the log message.</param>
+        /// <param name="message">The message to log.</param>
         public void Log(LogLevel level, string message)
         {
             if (message is null) return;
-            if (!_logActions.TryGetValue(level, out var logAction))
+
+            // default to Information level if the LogLevel is not recognized
+            if (!LogActions.TryGetValue(level, out var logAction))
             {
-                logAction = LogInfoMessage; // default to Information level if the level is not recognized
+                logAction = LogInfoMessage;
             }
 
             var args = new LogEventArgs(level, LogHandle, message, LogColor)
@@ -85,6 +165,12 @@ namespace LogViewer
             OnLogEvent(args); // this should never raise an exception, everything is caught/logged within that method if there is an error
         }
 
+        /// <summary>
+        /// Logs each item in an enumerable collection at the specified <see cref="LogLevel"/>.
+        /// </summary>
+        /// <typeparam name="T">The type of items in the collection.</typeparam>
+        /// <param name="level">The severity level of the log message.</param>
+        /// <param name="iterable">The collection to log.</param>
         public void Log<T>(LogLevel level, IEnumerable<T> iterable)
         {
             if (iterable is null) return;
@@ -105,6 +191,13 @@ namespace LogViewer
             }
         }
 
+        /// <summary>
+        /// Logs each key-value pair in a dictionary at the specified <see cref="LogLevel"/>.
+        /// </summary>
+        /// <typeparam name="TKey">The type of the dictionary keys.</typeparam>
+        /// <typeparam name="TValue">The type of the dictionary values.</typeparam>
+        /// <param name="level">The severity level of the log message.</param>
+        /// <param name="dict">The dictionary to log.</param>
         public void Log<TKey, TValue>(LogLevel level, IDictionary<TKey, TValue> dict)
         {
             if (dict is null) return;
@@ -124,35 +217,132 @@ namespace LogViewer
             }
         }
 
+        /// <summary>
+        /// Logs a message at the <see cref="LogLevel.Critical"/> level.
+        /// </summary>
+        /// <param name="message">The message to log.</param>
         public void LogCritical(string message) => Log(LogLevel.Critical, message);
+        /// <summary>
+        /// Logs each item in an enumerable collection at the <see cref="LogLevel.Critical"/> level.
+        /// </summary>
+        /// <typeparam name="T">The type of items in the collection.</typeparam>
+        /// <param name="iterable">The collection to log.</param>
         public void LogCritical<T>(IEnumerable<T> iterable) => Log(LogLevel.Critical, iterable);
+        /// <summary>
+        /// Logs each key-value pair in a dictionary at the <see cref="LogLevel.Critical"/> level.
+        /// </summary>
+        /// <typeparam name="TKey">The type of the dictionary keys.</typeparam>
+        /// <typeparam name="TValue">The type of the dictionary values.</typeparam>
+        /// <param name="dict">The dictionary to log.</param>
         public void LogCritical<TKey, TValue>(IDictionary<TKey, TValue> dict) => Log(LogLevel.Critical, dict);
 
+        /// <summary>
+        /// Logs a message at the <see cref="LogLevel.Debug"/> level.
+        /// </summary>
+        /// <param name="message">The message to log.</param>
         public void LogDebug(string message) => Log(LogLevel.Debug, message);
+        /// <summary>
+        /// Logs each item in an enumerable collection at the <see cref="LogLevel.Debug"/> level.
+        /// </summary>
+        /// <typeparam name="T">The type of items in the collection.</typeparam>
+        /// <param name="iterable">The collection to log.</param>
         public void LogDebug<T>(IEnumerable<T> iterable) => Log(LogLevel.Debug, iterable);
+        /// <summary>
+        /// Logs each key-value pair in a dictionary at the <see cref="LogLevel.Debug"/> level.
+        /// </summary>
+        /// <typeparam name="TKey">The type of the dictionary keys.</typeparam>
+        /// <typeparam name="TValue">The type of the dictionary values.</typeparam>
+        /// <param name="dict">The dictionary to log.</param>
         public void LogDebug<TKey, TValue>(IDictionary<TKey, TValue> dict) => Log(LogLevel.Debug, dict);
 
+        /// <summary>
+        /// Logs a message at the <see cref="LogLevel.Error"/> level.
+        /// </summary>
+        /// <param name="message">The message to log.</param>
         public void LogError(string message) => Log(LogLevel.Error, message);
+        /// <summary>
+        /// Logs each item in an enumerable collection at the <see cref="LogLevel.Error"/> level.
+        /// </summary>
+        /// <typeparam name="T">The type of items in the collection.</typeparam>
+        /// <param name="iterable">The collection to log.</param>
         public void LogError<T>(IEnumerable<T> iterable) => Log(LogLevel.Error, iterable);
+        /// <summary>
+        /// Logs each key-value pair in a dictionary at the <see cref="LogLevel.Error"/> level.
+        /// </summary>
+        /// <typeparam name="TKey">The type of the dictionary keys.</typeparam>
+        /// <typeparam name="TValue">The type of the dictionary values.</typeparam>
+        /// <param name="dict">The dictionary to log.</param>
         public void LogError<TKey, TValue>(IDictionary<TKey, TValue> dict) => Log(LogLevel.Error, dict);
 
-
+        /// <summary>
+        /// Logs a message at the <see cref="LogLevel.Information"/> level.
+        /// </summary>
+        /// <param name="message">The message to log.</param>
         public void LogInfo(string message) => Log(LogLevel.Information, message);
+        /// <summary>
+        /// Logs each item in an enumerable collection at the <see cref="LogLevel.Information"/> level.
+        /// </summary>
+        /// <typeparam name="T">The type of items in the collection.</typeparam>
+        /// <param name="iterable">The collection to log.</param>
         public void LogInfo<T>(IEnumerable<T> iterable) => Log(LogLevel.Information, iterable);
+        /// <summary>
+        /// Logs each key-value pair in a dictionary at the <see cref="LogLevel.Information"/> level.
+        /// </summary>
+        /// <typeparam name="TKey">The type of the dictionary keys.</typeparam>
+        /// <typeparam name="TValue">The type of the dictionary values.</typeparam>
+        /// <param name="dict">The dictionary to log.</param>
         public void LogInfo<TKey, TValue>(IDictionary<TKey, TValue> dict) => Log(LogLevel.Information, dict);
 
+        /// <summary>
+        /// Logs a message at the <see cref="LogLevel.Trace"/> level.
+        /// </summary>
+        /// <param name="message">The message to log.</param>
         public void LogTrace(string message) => Log(LogLevel.Trace, message);
+        /// <summary>
+        /// Logs each item in an enumerable collection at the <see cref="LogLevel.Trace"/> level.
+        /// </summary>
+        /// <typeparam name="T">The type of items in the collection.</typeparam>
+        /// <param name="iterable">The collection to log.</param>
         public void LogTrace<T>(IEnumerable<T> iterable) => Log(LogLevel.Trace, iterable);
+        /// <summary>
+        /// Logs each key-value pair in a dictionary at the <see cref="LogLevel.Trace"/> level.
+        /// </summary>
+        /// <typeparam name="TKey">The type of the dictionary keys.</typeparam>
+        /// <typeparam name="TValue">The type of the dictionary values.</typeparam>
+        /// <param name="dict">The dictionary to log.</param>
         public void LogTrace<TKey, TValue>(IDictionary<TKey, TValue> dict) => Log(LogLevel.Trace, dict);
 
+        /// <summary>
+        /// Logs a message at the <see cref="LogLevel.Warning"/> level.
+        /// </summary>
+        /// <param name="message">The message to log.</param>
         public void LogWarning(string message) => Log(LogLevel.Warning, message);
+        /// <summary>
+        /// Logs each item in an enumerable collection at the <see cref="LogLevel.Warning"/> level.
+        /// </summary>
+        /// <typeparam name="T">The type of items in the collection.</typeparam>
+        /// <param name="iterable">The collection to log.</param>
         public void LogWarning<T>(IEnumerable<T> iterable) => Log(LogLevel.Warning, iterable);
+        /// <summary>
+        /// Logs each key-value pair in a dictionary at the <see cref="LogLevel.Warning"/> level.
+        /// </summary>
+        /// <typeparam name="TKey">The type of the dictionary keys.</typeparam>
+        /// <typeparam name="TValue">The type of the dictionary values.</typeparam>
+        /// <param name="dict">The dictionary to log.</param>
         public void LogWarning<TKey, TValue>(IDictionary<TKey, TValue> dict) => Log(LogLevel.Warning, dict);
 
+        /// <summary>
+        /// Logs an exception with an optional header message and log level.
+        /// </summary>
+        /// <param name="exception">The exception to log.</param>
+        /// <param name="headerMessage">An optional header message to prefix the exception details.</param>
+        /// <param name="logLevel">The log level to use for the exception. Defaults to <see cref="LogLevel.Error"/>.</param>
         public void LogException(Exception exception, string? headerMessage, LogLevel logLevel = LogLevel.Error)
         {
             if (exception is null) return;
-            if (!_logExceptionActions.TryGetValue(logLevel, out var logAction))
+
+            // default to Error level if the LogLevel is not recognized
+            if (!LogExceptionActions.TryGetValue(logLevel, out var logAction))
             {
                 logAction = LogErrorException; // default to Error level if the level is not recognized
             }
@@ -170,9 +360,20 @@ namespace LogViewer
 
             OnLogEvent(args); // this should never raise an exception, everything is caught/logged within that method if there is an error
         }
+
+        /// <summary>
+        /// Logs an exception at the <see cref="LogLevel.Error"/> level with no header message.
+        /// </summary>
+        /// <param name="exception">The exception to log.</param>
         public void LogException(Exception exception) => LogException(exception, null, LogLevel.Error);
 
-
+        /// <summary>
+        /// Subscribes a synchronous handler to the <see cref="LogEvent"/> event.
+        /// </summary>
+        /// <param name="handler">The handler to invoke when a log event is raised.</param>
+        /// <returns>
+        /// A <see cref="LogEvent"/> delegate that can be used to unsubscribe, or <c>null</c> if the handler is <c>null</c>.
+        /// </returns>
         public LogEvent? SubscribeLogEventSync(Action<object, LogEventArgs> handler)
         {
             if (handler is null) return null;
@@ -187,6 +388,12 @@ namespace LogViewer
             return wrapper;
         }
 
+        /// <summary>
+        /// Raises the specified log event asynchronously, invoking all registered handlers.
+        /// </summary>
+        /// <param name="logEvent">The log event delegate to invoke.</param>
+        /// <param name="eventArgs">The event arguments to pass to handlers.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1229:Use async/await when necessary", Justification = "Awaiting all tasks after select statement, need to trigger all invokers without delay")]
         private async Task OnRaiseLogEventAsync(LogEvent? logEvent, LogEventArgs eventArgs)
         {
@@ -221,6 +428,10 @@ namespace LogViewer
             }
         }
 
+        /// <summary>
+        /// Raises both <see cref="BaseLogger.DebugLogEvent"/> (logcontrol) and <see cref="BaseLogger.LogEvent"> (subscribers) events for the specified event arguments.
+        /// </summary>
+        /// <param name="eventArgs">The event arguments to pass to subscribers.</param>
         protected void OnLogEvent(LogEventArgs eventArgs)
         {
             _ = OnRaiseLogEventAsync(DebugLogEvent, eventArgs);

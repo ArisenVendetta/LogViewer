@@ -11,6 +11,10 @@ using Microsoft.Extensions.Logging;
 
 namespace LogViewer
 {
+    /// <summary>
+    /// ViewModel for the LogControl user interface.
+    /// Manages log event filtering, pausing, and thread-safe updates to the log collection for WPF data binding.
+    /// </summary>
     [AddINotifyPropertyChangedInterface]
     public class LogControlViewModel : IDisposable
     {
@@ -22,11 +26,23 @@ namespace LogViewer
         private bool disposedValue;
         private ILogger _logger;
         private bool _isPaused;
-        private List<LogEventArgs> _pauseBuffer = [];
-        private object _pauseLock = new();
+        private readonly List<LogEventArgs> _pauseBuffer = [];
+        private readonly object _pauseLock = new();
 
-        public ILogger Logger => _logger ??= BaseLogger.LoggerFactory?.CreateLogger<LogControlViewModel>() ?? throw new InvalidOperationException($"Must call {nameof(BaseLogger)}.{nameof(BaseLogger.Initialize)} before creating an instance of {nameof(LogControlViewModel)}");
+        /// <summary>
+        /// Gets the logger instance for this view model.
+        /// </summary>
+        internal ILogger Logger => _logger ??= BaseLogger.LoggerFactory?.CreateLogger<LogControlViewModel>() ?? throw new InvalidOperationException($"Must call {nameof(BaseLogger)}.{nameof(BaseLogger.Initialize)} before creating an instance of {nameof(LogControlViewModel)}");
+
+        /// <summary>
+        /// Gets the observable collection of log events for data binding.
+        /// </summary>
         public LogCollection LogEvents { get; } = [];
+
+        /// <summary>
+        /// Gets or sets whether log updates are paused.
+        /// When set to true, incoming log events are buffered and not shown until resumed.
+        /// </summary>
         public bool IsPaused
         {
             get => _isPaused;
@@ -44,6 +60,10 @@ namespace LogViewer
             }
         }
 
+        /// <summary>
+        /// Gets or sets whether log handle filtering is case-insensitive.
+        /// Changing this property updates the filter and visible logs.
+        /// </summary>
         public bool LogHandleIgnoreCase
         {
             get => _logHandleIgnoreCase;
@@ -57,6 +77,10 @@ namespace LogViewer
             }
         }
 
+        /// <summary>
+        /// Gets or sets the original (user-supplied) log handle filter string, before wildcard/regex conversion.
+        /// Setting this property also updates the effective filter.
+        /// </summary>
         public string OriginalLogHandleFilter
         {
             get => _originalLogHandleFilter;
@@ -66,16 +90,20 @@ namespace LogViewer
                 else _originalLogHandleFilter = value;
 
                 //sanitize the original log handle filter by removing excluded characters using the same process BaseLogger does
-                foreach (var c in BaseLogger.ExcludeCharsFromName.Union([' '])) _originalLogHandleFilter = _originalLogHandleFilter.Replace(c.ToString(), "").Trim();
+                foreach (var c in BaseLogger.ExcludeCharsFromHandle.Union([' '])) _originalLogHandleFilter = _originalLogHandleFilter.Replace(c.ToString(), "").Trim();
 
                 LogHandleFilter = _originalLogHandleFilter;
             }
         }
 
+        /// <summary>
+        /// Gets the effective log handle filter as a regex string.
+        /// Setting this property updates the filter and visible logs.
+        /// </summary>
         public string LogHandleFilter
         {
             get => _logHandleFilter;
-            set
+            private set
             {
                 if (string.IsNullOrWhiteSpace(value)) _logHandleFilter = ".*";
                 else _logHandleFilter = WildcardToRegex(value);
@@ -84,8 +112,18 @@ namespace LogViewer
             }
         }
 
+        /// <summary>
+        /// Gets or sets the maximum number of log events to keep in the collection.
+        /// </summary>
         public int MaxLogSize { get; set; } = BaseLogger.MaxLogQueueSize;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="LogControlViewModel"/> class.
+        /// </summary>
+        /// <param name="dispatcher">The WPF dispatcher for UI thread synchronization.</param>
+        /// <param name="logHandleFilter">Optional initial log handle filter.</param>
+        /// <exception cref="ArgumentNullException">Thrown if dispatcher is null.</exception>
+        /// <exception cref="InvalidOperationException">Thrown if logger factory is not initialized.</exception>
         public LogControlViewModel(Dispatcher dispatcher, string? logHandleFilter = null)
         {
             _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
@@ -94,6 +132,11 @@ namespace LogViewer
             BaseLogger.DebugLogEvent += OnLogEventAsync;
         }
 
+        /// <summary>
+        /// Handles log events from the logger, applying filtering and pause logic.
+        /// </summary>
+        /// <param name="sender">The log event sender.</param>
+        /// <param name="e">The log event arguments.</param>
         private async Task OnLogEventAsync(object sender, LogEventArgs e)
         {
             if (e is null) return;
@@ -109,6 +152,7 @@ namespace LogViewer
                     }
                 }
 
+                // Ensure log updates are performed on the UI thread.
                 if (_dispatcher.CheckAccess())
                     await AddAndTrimLogEventsIfNeededAsync(e);
                 else
@@ -116,6 +160,11 @@ namespace LogViewer
             }
         }
 
+        /// <summary>
+        /// Determines if a log event's handle matches the current filter.
+        /// </summary>
+        /// <param name="logHandle">The log handle to check.</param>
+        /// <returns>True if the log handle matches the filter; otherwise, false.</returns>
         private bool IsLogEventHandleFiltered(string? logHandle)
         {
             if (string.IsNullOrWhiteSpace(LogHandleFilter)) return true;
@@ -124,6 +173,12 @@ namespace LogViewer
             return _handleCheck.IsMatch(logHandle);
         }
 
+        /// <summary>
+        /// Converts a wildcard pattern (with * and ?) to a regex string.
+        /// Supports multiple patterns separated by '|'.
+        /// </summary>
+        /// <param name="pattern">The wildcard pattern.</param>
+        /// <returns>A regex string equivalent to the wildcard pattern.</returns>
         internal static string WildcardToRegex(string? pattern)
         {
             if (string.IsNullOrWhiteSpace(pattern)) return ".*";
@@ -132,6 +187,9 @@ namespace LogViewer
             return $"^(?:{string.Join("|", parts)})$";
         }
 
+        /// <summary>
+        /// Clears all log events from the collection asynchronously, ensuring UI thread access.
+        /// </summary>
         public async Task ClearLogsAsync()
         {
             try
@@ -147,6 +205,9 @@ namespace LogViewer
             }
         }
 
+        /// <summary>
+        /// Updates the visible logs in the collection based on the current filter and maximum size.
+        /// </summary>
         private async Task UpdateVisibleLogsAsync()
         {
             try
@@ -157,6 +218,7 @@ namespace LogViewer
                     .Where(e => IsLogEventHandleFiltered(e.LogHandle))
                     .ToArray();
 
+                // Trim to the most recent MaxLogSize entries if needed.
                 tempCopy = tempCopy.Length > MaxLogSize ? tempCopy.Skip(tempCopy.Length - MaxLogSize).ToArray() : tempCopy;
 
                 foreach (var logEvent in tempCopy)
@@ -173,6 +235,9 @@ namespace LogViewer
             }
         }
 
+        /// <summary>
+        /// Resumes log updates after a pause and flushes any buffered log events to the collection.
+        /// </summary>
         private void ResumeAndFlushLogs()
         {
             if (_pauseBuffer.Count == 0) return;
@@ -180,6 +245,7 @@ namespace LogViewer
             LogEventArgs last;
             lock (_pauseLock)
             {
+                // Add all buffered events to the collection.
                 var temp = _pauseBuffer.Take(_pauseBuffer.Count - 1).ToList();
                 last = _pauseBuffer.Last();
                 if (_dispatcher.CheckAccess())
@@ -191,6 +257,10 @@ namespace LogViewer
             AddAndTrimLogEventsIfNeededAsync(last).GetAwaiter().GetResult();
         }
 
+        /// <summary>
+        /// Adds a log event to the collection and trims old entries if the maximum size is exceeded.
+        /// </summary>
+        /// <param name="e">The log event to add.</param>
         private async Task AddAndTrimLogEventsIfNeededAsync(LogEventArgs e)
         {
             try
@@ -203,6 +273,7 @@ namespace LogViewer
                 int overFlow = LogEvents.Count - MaxLogSize;
                 if (overFlow > 0)
                 {
+                    // Remove a little more than the overflow to reduce frequent trimming.
                     int amountToRemove = overFlow + ((int)(MaxLogSize * 0.1));
                     if (_dispatcher.CheckAccess())
                         LogEvents.RemoveRange(0, amountToRemove); // Remove oldest
