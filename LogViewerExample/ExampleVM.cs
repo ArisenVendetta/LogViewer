@@ -13,15 +13,18 @@ using PropertyChanged;
 namespace LogViewerExample
 {
     [AddINotifyPropertyChangedInterface]
-    internal class ExampleVM : BaseLogger
+    internal class ExampleVM : BaseLogger, IDisposable, IAsyncDisposable
     {
+        private bool _disposedValue;
+        private List<Task>? _logGenerators;
+
         public ExampleVM()
         {
             Commands = new ObservableCollection<CustomCommand>()
             {
                 new CustomCommand("Generate message for each log level", GenerateEachLogLevelAsync),
                 new CustomCommand("Generate random logs continuously", GenerateContinuousLogMessagesAsync),
-                new CustomCommand("Stop continuous log generation", new Command(StopContinuousLogMessages)),
+                new CustomCommand("Stop continuous log generation", StopContinuousLogMessagesAsync),
                 new CustomCommand("Generate exception", new Command(GenerateException))
             };
         }
@@ -51,34 +54,40 @@ namespace LogViewerExample
         private CancellationTokenSource? CancellationToken { get; set; }
         private async Task GenerateContinuousLogMessagesAsync()
         {
-            await Task.Run(async () =>
+            await StopContinuousLogMessagesAsync();
+
+            await Task.Run(() =>
             {
-                Random random = new Random(Environment.TickCount);
-                List<Task> logGenerators = new List<Task>();
+                Random random = new(Environment.TickCount);
+                _logGenerators = [];
                 CancellationToken = new CancellationTokenSource();
-                LogLevel[] logLevels = new LogLevel[]
+                LogLevel[] logLevels =
                 {
                     LogLevel.Trace,
                     LogLevel.Debug,
                     LogLevel.Information,
                     LogLevel.Warning,
                     LogLevel.Error,
-                    LogLevel.Critical,
-                    LogLevel.None
+                    LogLevel.Critical
                 };
 
                 for (int i = 0; i < 100; i++)
                 {
                     Color randomColor = Color.FromArgb(255, (byte)random.Next(256), (byte)random.Next(256), (byte)random.Next(256));
-                    SomeObject obj = new SomeObject($"SomeObject{i:D4}", logLevels[random.Next(0, logLevels.Length)], randomColor);
-                    logGenerators.Add(obj.SomeAction(random, CancellationToken));
+                    SomeObject obj = new($"SomeObject{i:D4}", randomColor, logLevels[random.Next(0, logLevels.Length)]);
+                    _logGenerators.Add(obj.SomeAction(random, CancellationToken));
                 }
-
-                await Task.WhenAll(logGenerators);
             });
         }
 
-        private void StopContinuousLogMessages() => CancellationToken?.Cancel();
+        private async Task StopContinuousLogMessagesAsync()
+        {
+            if (CancellationToken is null) return;
+            if (_logGenerators is null || _logGenerators.Count == 0) return;
+
+            CancellationToken?.Cancel();
+            await Task.WhenAll(_logGenerators);
+        }
 
         private void GenerateException()
         {
@@ -89,6 +98,51 @@ namespace LogViewerExample
             catch (Exception ex)
             {
                 LogException(ex);
+            }
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposedValue)
+            {
+                if (disposing)
+                {
+
+                }
+
+                _disposedValue = true;
+            }
+        }
+
+        // ~ExampleVM()
+        // {
+        //     // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+        //     Dispose(disposing: false);
+        // }
+
+        public void Dispose()
+        {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (!_disposedValue)
+            {
+                try
+                {
+                    await StopContinuousLogMessagesAsync();
+                }
+                catch (Exception)
+                {
+                    // swallow it, this is an example application and it's closing
+                }
+
+                Dispose(disposing: false);
+
+                _disposedValue = true;
+                GC.SuppressFinalize(this);
             }
         }
     }

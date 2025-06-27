@@ -1,13 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Threading;
 using System.Text.RegularExpressions;
-using PropertyChanged;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json.Linq;
+using PropertyChanged;
 
 namespace LogViewer
 {
@@ -20,7 +23,6 @@ namespace LogViewer
     {
         private readonly Dispatcher _dispatcher;
         private string _logHandleFilter = ".*";
-        private string _originalLogHandleFilter = "*";
         private bool _logHandleIgnoreCase;
         private Regex _handleCheck = new(".*");
         private bool disposedValue;
@@ -32,7 +34,7 @@ namespace LogViewer
         /// <summary>
         /// Gets the logger instance for this view model.
         /// </summary>
-        internal ILogger Logger => _logger ??= BaseLogger.LoggerFactory?.CreateLogger<LogControlViewModel>() ?? throw new InvalidOperationException($"Must call {nameof(BaseLogger)}.{nameof(BaseLogger.Initialize)} before creating an instance of {nameof(LogControlViewModel)}");
+        internal ILogger Logger => _logger ??= CreateLoggerIfNotDesignMode(); // will never be null except for in design mode, where logging is not needed.
 
         /// <summary>
         /// Gets the observable collection of log events for data binding.
@@ -60,6 +62,8 @@ namespace LogViewer
             }
         }
 
+        public bool AutoScroll { get; set; } = true;
+
         /// <summary>
         /// Gets or sets whether log handle filtering is case-insensitive.
         /// Changing this property updates the filter and visible logs.
@@ -78,38 +82,17 @@ namespace LogViewer
         }
 
         /// <summary>
-        /// Gets or sets the original (user-supplied) log handle filter string, before wildcard/regex conversion.
-        /// Setting this property also updates the effective filter.
-        /// </summary>
-        public string OriginalLogHandleFilter
-        {
-            get => _originalLogHandleFilter;
-            set
-            {
-                if (string.IsNullOrWhiteSpace(value)) _originalLogHandleFilter = "*";
-                else _originalLogHandleFilter = value;
-
-                //sanitize the original log handle filter by removing excluded characters using the same process BaseLogger does
-                foreach (var c in BaseLogger.ExcludeCharsFromHandle.Union([' '])) _originalLogHandleFilter = _originalLogHandleFilter.Replace(c.ToString(), "").Trim();
-
-                LogHandleFilter = _originalLogHandleFilter;
-            }
-        }
-
-        /// <summary>
         /// Gets the effective log handle filter as a regex string.
         /// Setting this property updates the filter and visible logs.
         /// </summary>
+        /// <remarks>
+        /// If you set it to an empty string, whitespace or null, it defaults to ".*" (matches all handles). <br/>
+        /// If you want to use wildcards, pass your wildcard pattern through <see cref="WildcardToRegex"/> method before assigning it.
+        /// </remarks>
         public string LogHandleFilter
         {
             get => _logHandleFilter;
-            private set
-            {
-                if (string.IsNullOrWhiteSpace(value)) _logHandleFilter = ".*";
-                else _logHandleFilter = WildcardToRegex(value);
-                _handleCheck = new Regex(_logHandleFilter, LogHandleIgnoreCase ? RegexOptions.IgnoreCase : RegexOptions.None);
-                _ = UpdateVisibleLogsAsync();
-            }
+            set => SetRegexFilterIfValid(value);
         }
 
         /// <summary>
@@ -128,8 +111,20 @@ namespace LogViewer
         {
             _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
             LogHandleFilter = logHandleFilter ?? string.Empty;
-            _logger = BaseLogger.LoggerFactory?.CreateLogger<LogControlViewModel>() ?? throw new InvalidOperationException($"Must call {nameof(BaseLogger)}.{nameof(BaseLogger.Initialize)} before creating an instance of {nameof(LogControlViewModel)}");
+
+            _logger = CreateLoggerIfNotDesignMode(); // will never be null except for in design mode, where logging is not needed.
             BaseLogger.DebugLogEvent += OnLogEventAsync;
+        }
+
+        /// <summary>
+        /// Needed to move creation of logger to a separate method check for design mode preventing the exception from showing in the XAML designer
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
+        private ILogger? CreateLoggerIfNotDesignMode()
+        {
+            if (DesignerProperties.GetIsInDesignMode(new DependencyObject())) return null;
+            return BaseLogger.LoggerFactory?.CreateLogger<LogControlViewModel>() ?? throw new InvalidOperationException($"Must call {nameof(BaseLogger)}.{nameof(BaseLogger.Initialize)} before creating an instance of {nameof(LogControlViewModel)}");
         }
 
         /// <summary>
@@ -179,12 +174,31 @@ namespace LogViewer
         /// </summary>
         /// <param name="pattern">The wildcard pattern.</param>
         /// <returns>A regex string equivalent to the wildcard pattern.</returns>
-        internal static string WildcardToRegex(string? pattern)
+        public static string WildcardToRegex(string? pattern)
         {
             if (string.IsNullOrWhiteSpace(pattern)) return ".*";
             // Escape special regex characters, replace wildcard '*' with '.*' and replace wildcard '?' with '.'
             var parts = pattern.Split('|').Select(part => Regex.Escape(part).Replace(@"\*", ".*").Replace(@"\?", "."));
             return $"^(?:{string.Join("|", parts)})$";
+        }
+
+        internal bool SetRegexFilterIfValid(string? filter)
+        {
+            if (string.IsNullOrWhiteSpace(filter)) filter = ".*";
+
+            try
+            {
+                // Validate the regex pattern by creating a new Regex instance.
+                _handleCheck = new Regex(filter, LogHandleIgnoreCase ? RegexOptions.IgnoreCase : RegexOptions.None);
+                _logHandleFilter = filter;
+                _ = UpdateVisibleLogsAsync();
+                return true;
+            }
+            catch (ArgumentException)
+            {
+                // Invalid regex pattern, do not change the filter.
+                return false;
+            }
         }
 
         /// <summary>

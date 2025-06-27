@@ -30,6 +30,7 @@ namespace LogViewer
         private readonly LogControlViewModel _viewModel;
 
         private bool _disposedValue;
+
         private ScrollViewer? _scrollViewer;
 
         /// <summary>
@@ -53,7 +54,7 @@ namespace LogViewer
                     if (_scrollViewer is null)
                         _scrollViewer = GetScrollViewer(__logList);
 
-                    if (_scrollViewer is not null)
+                    if (_scrollViewer is not null && _viewModel.AutoScroll)
                     {
                         // Scroll to the end on the UI thread at background priority.
                         Dispatcher.InvokeAsync(() =>
@@ -63,6 +64,86 @@ namespace LogViewer
                     }
                 }
             };
+        }
+
+        public int MaxLogSize
+        {
+            get => (int)GetValue(MaxLogSizeProperty);
+            set
+            {
+                if (value < 0) throw new ArgumentOutOfRangeException(nameof(value), "MaxLogSize cannot be negative.");
+                int newValue = value > BaseLogger.MaxLogQueueSize ? BaseLogger.MaxLogQueueSize : value;
+
+                SetValue(MaxLogSizeProperty, newValue);
+                _viewModel.MaxLogSize = newValue;
+            }
+        }
+
+        public string HandleFilter
+        {
+            get => (string)GetValue(HandleFilterProperty) ?? string.Empty;
+            set
+            {
+                SetValue(HandleFilterProperty, value);
+                _viewModel.LogHandleFilter = value ?? string.Empty;
+            }
+        }
+
+        public bool IgnoreCase
+        {
+            get => (bool)GetValue(IgnoreCaseProperty);
+            set
+            {
+                SetValue(IgnoreCaseProperty, value);
+                _viewModel.LogHandleIgnoreCase = value;
+            }
+        }
+
+        public bool AutoScroll
+        {
+            get => (bool)GetValue(AutoScrollProperty);
+            set
+            {
+                SetValue(AutoScrollProperty, value);
+                _viewModel.AutoScroll = value;
+            }
+        }
+
+        private static void OnMaxLogSizeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is LogControl control && control._viewModel != null)
+            {
+                control._viewModel.MaxLogSize = (int)e.NewValue;
+            }
+        }
+
+        private static void OnHandleFilterChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is LogControl control && control._viewModel != null)
+            {
+                control._viewModel.LogHandleFilter = e.NewValue as string;
+            }
+        }
+
+        private static void OnIgnoreCaseChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is LogControl control && control._viewModel != null)
+            {
+                control._viewModel.LogHandleIgnoreCase = (bool)e.NewValue;
+            }
+        }
+
+        private static void OnAutoScrollChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is LogControl control)
+            {
+                control._viewModel.AutoScroll = (bool)e.NewValue;
+                // If auto-scroll is enabled, scroll to the end of the log list.
+                if (control._viewModel.AutoScroll && control._scrollViewer != null)
+                {
+                    control._scrollViewer.ScrollToEnd();
+                }
+            }
         }
 
         /// <summary>
@@ -118,6 +199,32 @@ namespace LogViewer
             }
             return null;
         }
+
+        #region Dependency Properties
+        public static readonly DependencyProperty MaxLogSizeProperty = DependencyProperty.Register(
+            nameof(MaxLogSize),
+            typeof(int),
+            typeof(LogControl),
+            new PropertyMetadata(BaseLogger.MaxLogQueueSize, OnMaxLogSizeChanged));
+
+        public static readonly DependencyProperty HandleFilterProperty = DependencyProperty.Register(
+            nameof(HandleFilter),
+            typeof(string),
+            typeof(LogControl),
+            new PropertyMetadata(null, OnHandleFilterChanged));
+
+        public static readonly DependencyProperty IgnoreCaseProperty = DependencyProperty.Register(
+            nameof(IgnoreCase),
+            typeof(bool),
+            typeof(LogControl),
+            new PropertyMetadata(false, OnIgnoreCaseChanged));
+
+        public static readonly DependencyProperty AutoScrollProperty = DependencyProperty.Register(
+            nameof(AutoScroll),
+            typeof(bool),
+            typeof(LogControl),
+            new PropertyMetadata(true, OnAutoScrollChanged));
+        #endregion
 
         #region IDisposable Support
         protected virtual void Dispose(bool disposing)

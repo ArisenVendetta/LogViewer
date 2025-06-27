@@ -35,5 +35,17 @@ namespace LogViewerExample
 
             _loggableObject.LogInfo("Logging initialized");
         }
+
+        private async void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            try
+            {
+                await _example.DisposeAsync();
+            }
+            catch (Exception)
+            {
+                // swallow it, this is an example application and it's closing
+            }
+        }
     }
 }

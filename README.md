@@ -12,7 +12,7 @@ LogViewer provides structured, color-coded, and filterable logging with MVVM-fri
 - **Thread-safe, observable log collection** (`LogCollection`)
 - **Structured log events** with color, timestamp, and log level
 - **Integration with `ILogger` and `LogLevel`**
-- **Wildcard log handle filtering**
+- **Regular expression log handle filtering**
 - **Pause/resume and clear log functionality**
 - **Customizable log message formatting and coloring**
 - **Event-driven extensibility for custom log consumers**
@@ -42,8 +42,17 @@ LogViewer provides structured, color-coded, and filterable logging with MVVM-fri
 2. **Add the LogControl to your XAML:**
 
     ```xml
-    <logViewer:LogControl x:Name="LogViewerControl" />
+    <logViewer:LogControl x:Name="LogViewerControl" 
+                          MaxLogSize="5000" 
+                          IgnoreCase="True" 
+                          HandleFilter="Reg(?:ular)?Ex(?:pression)" />
     ```
+
+    The usercontrol provides propertes to define:
+    - `MaxLogSize`: Maximum number of log entries to keep in memory.
+    - `IgnoreCase`: Whether to ignore case in log handle filtering.
+    - `HandleFilter`: A string to filter log handles using regex.
+    - `AutoScroll`: Whether to always show latest log or stay where user scrolls to
 
     Make sure to add the appropriate XML namespace for `logViewer`.
 
@@ -84,24 +93,31 @@ LogViewer provides structured, color-coded, and filterable logging with MVVM-fri
 ## Customization
 
 - **Log Colors**: Assign a `Color` to each logger for visual distinction.
-- **Filtering**: Use wildcards (`*`, `?`) or regex in the log handle filter.
+- **Filtering**: Use regular expressions in the log handle filter.
 - **Max Log Size**: Set `MaxLogSize` in the view model to control memory usage.
 
 ---
 
 ## Example
 ```csharp
-public class ExampleVM : BaseLogger 
+public class ExampleClass : BaseLogger 
 { 
-    public ExampleVM() : base("ExampleVM", Colors.Blue) 
+    public ExampleClass() : base("Example", Colors.Blue) 
     {
     }
     
     public void DoSomething()
     {
-        LogInfo("This is an info message.");
-        LogWarning("This is a warning.");
-        LogError("This is an error.");
+        try
+        {
+            LogInfo("This is an info message.");
+            LogWarning("This is a warning.");
+            LogError("This is an error.");
+        }
+        catch (Exception ex)
+        {
+            LogException(ex, "An exception happened");
+        }
     }
 }
 ```
