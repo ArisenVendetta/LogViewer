@@ -7,15 +7,20 @@ LogViewer provides structured, color-coded, and filterable logging with MVVM-fri
 
 ## Features
 
-- **WPF UserControl** for displaying logs in real time
-- **MVVM-ready ViewModel** for log filtering, pausing, and size management
-- **Thread-safe, observable log collection** (`LogCollection`)
-- **Structured log events** with color, timestamp, and log level
-- **Integration with `ILogger` and `LogLevel`**
-- **Regular expression log handle filtering**
-- **Pause/resume and clear log functionality**
-- **Customizable log message formatting and coloring**
-- **Event-driven extensibility for custom log consumers**
+- **WPF UserControl** for displaying logs in real time.
+- **MVVM-ready ViewModel** for log filtering, pausing, and size management.
+- **Thread-safe, observable log collection** (`LogCollection`).
+- **Structured log events** with color, timestamp, and log level.
+- **Integration with `ILogger` and `LogLevel`**.
+- **Regular expression log handle filtering** with case sensitivity options.
+- **Pause/resume and clear log functionality**.
+- **Customizable log message formatting and coloring**.
+- **Event-driven extensibility for custom log consumers**.
+- **Export logs** to various formats (e.g., JSON, CSV) for diagnostics or archival purposes.
+- **Auto-scroll** to the latest log entry or manual scrolling.
+- **Support for large log sizes** with configurable memory limits.
+- **Built-in commands** for exporting, clearing, and pausing logs.
+- **Seamless integration with `CommunityToolkit.Mvvm` for command and property binding**.
 
 ---
 
@@ -45,14 +50,15 @@ LogViewer provides structured, color-coded, and filterable logging with MVVM-fri
     <logViewer:LogControl x:Name="LogViewerControl" 
                           MaxLogSize="5000" 
                           IgnoreCase="True" 
-                          HandleFilter="Reg(?:ular)?Ex(?:pression)" />
+                          HandleFilter="Reg(?:ular)?Ex(?:pression)" 
+                          AutoScroll="True" />
     ```
 
-    The usercontrol provides propertes to define:
+    The user control provides properties to define:
     - `MaxLogSize`: Maximum number of log entries to keep in memory.
     - `IgnoreCase`: Whether to ignore case in log handle filtering.
     - `HandleFilter`: A string to filter log handles using regex.
-    - `AutoScroll`: Whether to always show latest log or stay where user scrolls to
+    - `AutoScroll`: Whether to always show the latest log or stay where the user scrolls.
 
     Make sure to add the appropriate XML namespace for `logViewer`.
 
@@ -74,27 +80,31 @@ LogViewer provides structured, color-coded, and filterable logging with MVVM-fri
     LogException(exception);
     ```
 
-5. **Filter, pause, or clear logs in the UI using the LogControl’s built-in features.**
+5. **Filter, pause, clear, or export logs in the UI using the LogControl’s built-in features.**
 
 ---
 
 ## Core Components
 
 - **LogControl**: WPF UserControl for displaying and interacting with logs.
-- **LogControlViewModel**: Handles log filtering, pausing, and collection management.
+- **LogControlViewModel**: Handles log filtering, pausing, exporting, and collection management.
 - **LogCollection**: Thread-safe, observable collection of log events.
 - **BaseLogger**: Abstract base class for log-capable objects.
 - **ILoggable**: Interface for log-capable objects.
 - **LogEventArgs**: Encapsulates log event data.
 - **Converters**: WPF value converters for log level coloring and brush conversion.
+- **ExportLogsCommand**: Command for exporting logs to supported file formats.
+- **ClearLogsCommand**: Command for clearing all logs.
+- **TogglePauseCommand**: Command for pausing or resuming log updates.
 
 ---
 
 ## Customization
 
 - **Log Colors**: Assign a `Color` to each logger for visual distinction.
-- **Filtering**: Use regular expressions in the log handle filter.
+- **Filtering**: Use regular expressions in the log handle filter with optional case sensitivity.
 - **Max Log Size**: Set `MaxLogSize` in the view model to control memory usage.
+- **Export Formats**: Extend or customize supported file types for log export.
 
 ---
 
@@ -105,7 +115,7 @@ public class ExampleClass : BaseLogger
     public ExampleClass() : base("Example", Colors.Blue) 
     {
     }
-    
+
     public void DoSomething()
     {
         try
@@ -122,12 +132,5 @@ public class ExampleClass : BaseLogger
 }
 ```
 
+
 A more in-depth example can be found in the LogViewerExample project (included with the source code), which demonstrates how to use the LogViewer in a WPF application.
-
----
-
-## License
-
-This project is intended to be open source, but a specific license has not yet been chosen.
-If you have questions or suggestions about licensing, please open an issue or discussion.
-
