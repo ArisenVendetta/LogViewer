@@ -163,7 +163,7 @@ namespace LogViewer
 
             ClearLogsCommand = new AsyncRelayCommand(ClearLogsAsync);
             TogglePauseCommand = new(() => IsPaused = !IsPaused);
-            ExportLogsCommand = new AsyncRelayCommand(async () => await ExportLogsAsync());
+            ExportLogsCommand = new AsyncRelayCommand(async () => _ = await ExportLogsAsync());
 
             SelectedExportFileType = SupportedExportFileTypes.FirstOrDefault() ?? new FileType("JSON", ".json");
         }

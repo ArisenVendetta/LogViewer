@@ -31,6 +31,25 @@ LogViewer provides structured, color-coded, and filterable logging with MVVM-fri
 - .NET 8 SDK
 - WPF application
 
+## Acknowledgments
+
+This project uses the following third-party libraries, licensed under the MIT License:
+
+- [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet)
+- [Fody](https://github.com/Fody/Fody)
+- [Microsoft.Extensions.Logging](https://dot.net)
+- [Newtonsoft.Json](https://www.newtonsoft.com/json)
+- [PropertyChanged.Fody](https://github.com/Fody/PropertyChanged)
+
+The full text of the MIT License for these libraries can be found in the `THIRD_PARTY_LICENSES\MIT.txt` file.
+
+
+This project uses the following third-party libraries, licensed under the Apache-2.0 License:
+
+- [CsvHelper](https://joshclose.github.io/CsvHelper/)
+
+the full text of the Apache-2.0 License for these libraries can be found in the `THIRD_PARTY_LICENSES\Apache-2.0.md` file.
+
 ### Installation
 
 1. **Add the LogViewer project** to your solution.
@@ -134,3 +153,8 @@ public class ExampleClass : BaseLogger
 
 
 A more in-depth example can be found in the LogViewerExample project (included with the source code), which demonstrates how to use the LogViewer in a WPF application.
+
+---
+
+## License
+This project is licensed under the terms of the [GNU General Public License v3.0](LICENSE.txt).
