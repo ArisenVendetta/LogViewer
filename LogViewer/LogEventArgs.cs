@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Media;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 
 namespace LogViewer
 {
@@ -43,7 +44,7 @@ namespace LogViewer
         /// <summary>
         /// Gets the formatted timestamp string for display, using the global log date/time format.
         /// </summary>
-        public string LogDateTimeFormatted => LogDateTime.ToString(BaseLogger.LogDateTimeFormat, CultureInfo.InvariantCulture);
+        [JsonIgnore] public string LogDateTimeFormatted => LogDateTime.ToString(BaseLogger.LogDateTimeFormat, CultureInfo.InvariantCulture);
 
         /// <summary>
         /// Gets the severity level of the log event.
@@ -51,9 +52,14 @@ namespace LogViewer
         public LogLevel LogLevel { get; } = level;
 
         /// <summary>
+        /// Gets the unique identifier for the currently executing thread.
+        /// </summary>
+        public int ThreadId { get; } = Environment.CurrentManagedThreadId;
+
+        /// <summary>
         /// Gets the unique identifier for this log event instance.
         /// </summary>
-        public Guid ID { get; } = Guid.NewGuid();
+        [JsonIgnore] public Guid ID { get; } = Guid.NewGuid();
 
         /// <summary>
         /// Returns the main parts of the log message as a tuple: timestamp, handle, and message body.
@@ -71,6 +77,38 @@ namespace LogViewer
         public override string ToString()
         {
             return $"{LogDateTime.ToString(BaseLogger.LogDateTimeFormat, CultureInfo.InvariantCulture)} [{LogHandle}] {LogText}";
+        }
+
+        /// <summary>
+        /// Formats the log message based on the specified format string or a default format.
+        /// </summary>
+        /// <remarks>The method uses a default format string if none is provided. The placeholders in the
+        /// format string are case-insensitive and will be replaced with the appropriate values based on the log entry's
+        /// properties.</remarks>
+        /// <param name="format">An optional format string that defines the structure of the log message.  If <paramref name="format"/> is
+        /// null, empty, or consists only of whitespace, a default format is used. The format string can include
+        /// placeholders such as: <list type="bullet"> <item><description><c>{timestamp}</c> - The timestamp of the log
+        /// entry.</description></item> <item><description><c>{loglevel}</c> - The log level (e.g., Info, Warning,
+        /// Error).</description></item> <item><description><c>{threadid}</c> - The ID of the thread that generated the
+        /// log entry.</description></item> <item><description><c>{color}</c> - The color associated with the log
+        /// level.</description></item> <item><description><c>{handle}</c> - The handle or identifier for the log
+        /// source.</description></item> <item><description><c>{message}</c> - The actual log message
+        /// text.</description></item> </list></param>
+        /// <returns>A formatted log message string where placeholders in the format string are replaced with their corresponding
+        /// values.</returns>
+        public string FormatLogMessage(string? format = null)
+        {
+            if (string.IsNullOrWhiteSpace(format)) format = BaseLogger.LogExportFormat;
+
+            var sb = new StringBuilder(format.ToLower(CultureInfo.InvariantCulture))
+                .Replace("{timestamp}", LogDateTimeFormatted)
+                .Replace("{loglevel}", LogLevel.ToString())
+                .Replace("{threadid}", ThreadId.ToString(CultureInfo.InvariantCulture))
+                .Replace("{color}", LogColor.ToString())
+                .Replace("{handle}", LogHandle)
+                .Replace("{message}", LogText);
+
+            return sb.ToString();
         }
 
         /// <summary>

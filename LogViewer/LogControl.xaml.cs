@@ -66,6 +66,11 @@ namespace LogViewer
             };
         }
 
+        /// <summary>
+        /// Gets or sets the maximum size, in bytes, of the log queue.
+        /// </summary>
+        /// <remarks>If the value assigned exceeds the maximum log queue size, it will be automatically
+        /// capped at <see cref="BaseLogger.MaxLogQueueSize"/>.</remarks>
         public int MaxLogSize
         {
             get => (int)GetValue(MaxLogSizeProperty);
@@ -79,6 +84,11 @@ namespace LogViewer
             }
         }
 
+        /// <summary>
+        /// Gets or sets the filter string used to match specific handles.
+        /// </summary>
+        /// <remarks>This property is used to specify a filter that determines which handles are included
+        /// in the operation. Setting this property updates the associated view model's handle filter.</remarks>
         public string HandleFilter
         {
             get => (string)GetValue(HandleFilterProperty) ?? string.Empty;
@@ -89,6 +99,9 @@ namespace LogViewer
             }
         }
 
+        /// <summary>
+        /// Gets or sets a value indicating whether string comparisons should ignore case.
+        /// </summary>
         public bool IgnoreCase
         {
             get => (bool)GetValue(IgnoreCaseProperty);
@@ -99,6 +112,10 @@ namespace LogViewer
             }
         }
 
+        /// <summary>
+        /// Gets or sets a value indicating whether the content should automatically scroll to display the most recent
+        /// updates.
+        /// </summary>
         public bool AutoScroll
         {
             get => (bool)GetValue(AutoScrollProperty);
@@ -109,6 +126,13 @@ namespace LogViewer
             }
         }
 
+        /// <summary>
+        /// Handles changes to the <see cref="MaxLogSize"/> dependency property.
+        /// </summary>
+        /// <remarks>This method updates the <c>MaxLogSize</c> property of the associated view model, if
+        /// available, to reflect the new value of the dependency property.</remarks>
+        /// <param name="d">The <see cref="DependencyObject"/> on which the property value has changed.</param>
+        /// <param name="e">The event data containing information about the property change, including the old and new values.</param>
         private static void OnMaxLogSizeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d is LogControl control && control._viewModel != null)
@@ -117,14 +141,30 @@ namespace LogViewer
             }
         }
 
+        /// <summary>
+        /// Handles changes to the <see cref="LogControl.LogHandleFilterProperty"/> dependency property.
+        /// </summary>
+        /// <remarks>This method updates the <c>LogHandleFilter</c> property of the associated view model,
+        /// if available, to reflect the new value of the dependency property.</remarks>
+        /// <param name="d">The <see cref="DependencyObject"/> on which the property value has changed.</param>
+        /// <param name="e">The event data containing information about the property change, including the old and new values.</param>
         private static void OnHandleFilterChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d is LogControl control && control._viewModel != null)
             {
+#pragma warning disable CS8601 // Possible null reference assignment | null value is handled inside LogHandleFilter
                 control._viewModel.LogHandleFilter = e.NewValue as string;
+#pragma warning restore CS8601 // Possible null reference assignment.
             }
         }
 
+        /// <summary>
+        /// Handles changes to the <see cref="IgnoreCase"/> dependency property.
+        /// </summary>
+        /// <remarks>This method updates the associated view model's <c>LogHandleIgnoreCase</c> property
+        /// to reflect the new value of the <see cref="IgnoreCase"/> property.</remarks>
+        /// <param name="d">The <see cref="DependencyObject"/> on which the property value has changed.</param>
+        /// <param name="e">The event data containing information about the property change.</param>
         private static void OnIgnoreCaseChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d is LogControl control && control._viewModel != null)
@@ -133,6 +173,14 @@ namespace LogViewer
             }
         }
 
+        /// <summary>
+        /// Handles changes to the <see cref="AutoScroll"/> dependency property.
+        /// </summary>
+        /// <remarks>This method updates the <see cref="LogControl"/>'s view model to reflect the new
+        /// value of the <see cref="AutoScroll"/> property. If auto-scroll is enabled and a scroll viewer is available,
+        /// the log list is automatically scrolled to the end.</remarks>
+        /// <param name="d">The <see cref="DependencyObject"/> on which the property value has changed.</param>
+        /// <param name="e">The event data containing information about the property change, including the old and new values.</param>
         private static void OnAutoScrollChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d is LogControl control)
@@ -152,32 +200,6 @@ namespace LogViewer
         private void LogViewer_Unloaded(object sender, RoutedEventArgs e)
         {
             _viewModel?.Dispose();
-        }
-
-        /// <summary>
-        /// Handles the mouse down event for the "Clear" button, clearing all logs asynchronously.
-        /// </summary>
-        private async void Clear_PreviewMouseDown(object sender, MouseButtonEventArgs e)
-        {
-            try
-            {
-                await _viewModel.ClearLogsAsync();
-            }
-            catch (Exception ex)
-            {
-                // Log any error that occurs during log clearing.
-                BaseLogger.LogErrorException(_viewModel.Logger, "Error while clearing logs in LogControl.", ex);
-            }
-        }
-
-        /// <summary>
-        /// Handles the mouse down event for the "Pause" button, toggling pause/resume state.
-        /// </summary>
-        private void Pause_PreviewMouseDown(object sender, MouseButtonEventArgs e)
-        {
-            _viewModel.IsPaused = !_viewModel.IsPaused;
-            // Update the button content to reflect the new state.
-            __pauseButton.Content = _viewModel.IsPaused ? "Resume" : "Pause";
         }
 
         /// <summary>
@@ -201,24 +223,48 @@ namespace LogViewer
         }
 
         #region Dependency Properties
+        /// <summary>
+        /// Identifies the <see cref="MaxLogSize"/> dependency property.
+        /// </summary>
+        /// <remarks>This property represents the maximum size of the log queue. It is used to control the
+        /// number of log entries that can be stored in the log control. The default value is determined by <see
+        /// cref="BaseLogger.MaxLogQueueSize"/>.</remarks>
         public static readonly DependencyProperty MaxLogSizeProperty = DependencyProperty.Register(
             nameof(MaxLogSize),
             typeof(int),
             typeof(LogControl),
             new PropertyMetadata(BaseLogger.MaxLogQueueSize, OnMaxLogSizeChanged));
 
+        /// <summary>
+        /// Identifies the <see cref="HandleFilter"/> dependency property.
+        /// </summary>
+        /// <remarks>This property is used to register the <see cref="HandleFilter"/> dependency property
+        /// for the <see cref="LogControl"/> class.</remarks>
         public static readonly DependencyProperty HandleFilterProperty = DependencyProperty.Register(
             nameof(HandleFilter),
             typeof(string),
             typeof(LogControl),
             new PropertyMetadata(null, OnHandleFilterChanged));
 
+        /// <summary>
+        /// Identifies the <see cref="IgnoreCase"/> dependency property, which determines whether case should be ignored
+        /// in log filtering.
+        /// </summary>
+        /// <remarks>This property is used to configure case sensitivity when filtering log entries in the
+        /// <see cref="LogControl"/>. The default value is <see langword="false"/>, meaning case is considered by
+        /// default.</remarks>
         public static readonly DependencyProperty IgnoreCaseProperty = DependencyProperty.Register(
             nameof(IgnoreCase),
             typeof(bool),
             typeof(LogControl),
             new PropertyMetadata(false, OnIgnoreCaseChanged));
 
+        /// <summary>
+        /// Identifies the <see cref="AutoScroll"/> dependency property, which determines whether the log control
+        /// automatically scrolls to the latest entry.
+        /// </summary>
+        /// <remarks>This property is registered as a dependency property to enable data binding and
+        /// styling support. The default value is <see langword="true"/>.</remarks>
         public static readonly DependencyProperty AutoScrollProperty = DependencyProperty.Register(
             nameof(AutoScroll),
             typeof(bool),

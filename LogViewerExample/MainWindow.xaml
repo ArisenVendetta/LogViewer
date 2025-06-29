@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:LogViewerExample"
         xmlns:logger="clr-namespace:LogViewer;assembly=LogViewer"
         mc:Ignorable="d"
-        Title="MainWindow" Height="650" Width="1000" Topmost="False" Closing="Window_Closing">
+        Title="MainWindow" Height="650" Width="1100" Topmost="False" Closing="Window_Closing">
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -33,9 +33,9 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type local:CustomCommand}">
-                        <Button Command="{Binding RunCommand}" IsEnabled="{Binding Enabled}" Width="200" Height="50" Margin="5" Style="{StaticResource RoundedButtonStyle}">
+                        <Button Command="{Binding RunCommand, Mode=OneWay}" IsEnabled="{Binding Enabled}" Width="200" Height="50" Margin="5" Style="{StaticResource RoundedButtonStyle}">
                             <Button.Content>
-                                <AccessText Text="{Binding Description}" TextWrapping="Wrap" TextAlignment="Center"/>
+                                <AccessText Text="{Binding Description, Mode=OneWay}" TextWrapping="Wrap" TextAlignment="Center"/>
                             </Button.Content>
                         </Button>
                     </DataTemplate>

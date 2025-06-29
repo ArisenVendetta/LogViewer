@@ -15,6 +15,7 @@
             </ResourceDictionary.MergedDictionaries>
 
             <converters:ColorToBrushConverter x:Key="ColorToBrushConverter"/>
+            <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
             <converters:LogLevelColorConverter x:Key="LogLevelToBrushConverter"/>
             <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         </ResourceDictionary>
@@ -22,7 +23,7 @@
     <Grid Background="White">
         <Grid.RowDefinitions>
             <RowDefinition/>
-            <RowDefinition Height="40"/>
+            <RowDefinition Height="42"/>
         </Grid.RowDefinitions>
         <Grid Grid.Row="0" Panel.ZIndex="999">
             <Grid.RowDefinitions>
@@ -62,34 +63,42 @@
         </ListView>
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="300"/>
-                <ColumnDefinition Width="230"/>
+                <ColumnDefinition Width="130"/>
+                <ColumnDefinition Width="100"/>
                 <ColumnDefinition />
+                <ColumnDefinition Width="100"/>
+                <ColumnDefinition Width="100"/>
                 <ColumnDefinition Width="100"/>
                 <ColumnDefinition Width="100"/>
             </Grid.ColumnDefinitions>
 
             <Grid Grid.Column="0">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="70"/>
-                    <ColumnDefinition />
-                    <ColumnDefinition Width="20" />
+                    <ColumnDefinition Width="80"/>
                     <ColumnDefinition />
                 </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition />
+                    <RowDefinition />
+                </Grid.RowDefinitions>
 
-                <Label Grid.Column="0" Content="Lines:" FontFamily="Consolas" FontSize="14" VerticalContentAlignment="Center" HorizontalContentAlignment="Right" Margin="5"/>
-                <TextBox Grid.Column="1" Text="{Binding LogEvents.Count, Mode=OneWay}" FontFamily="Consolas" FontSize="14" Margin="5" TextWrapping="NoWrap" IsReadOnly="True" IsReadOnlyCaretVisible="False" TextAlignment="Center" VerticalContentAlignment="Center" />
-                <Label Grid.Column="2" Content="/" FontFamily="Consolas" FontSize="14" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
-                <TextBox Grid.Column="3" Text="{Binding MaxLogSize}" FontFamily="Consolas" FontSize="14" Margin="5" TextWrapping="NoWrap" IsReadOnly="True" IsReadOnlyCaretVisible="False" TextAlignment="Center" VerticalContentAlignment="Center" />
+                <Label Grid.Column="0" Grid.Row="0" Content="Active Log:" FontFamily="Consolas" FontSize="10" VerticalContentAlignment="Center" HorizontalContentAlignment="Right" Padding="0,0,0,5" />
+                <Label Grid.Column="1" Grid.Row="0" Content="{Binding LogEvents.Count, Mode=OneWay}" FontFamily="Consolas" FontSize="10" Margin="5,0,0,0" HorizontalContentAlignment="Left" VerticalContentAlignment="Center" Padding="0,0,0,5"/>
+                <Separator Grid.ColumnSpan="2" Grid.RowSpan="2" Margin="5,0,15,0"/>
+                <Label Grid.Column="0" Grid.Row="1" Content="Pause Buffer:" FontFamily="Consolas" FontSize="10" VerticalContentAlignment="Center" HorizontalContentAlignment="Right" Padding="0,2,0,0"/>
+                <Label Grid.Column="1" Grid.Row="1" Content="{Binding PauseBufferCount, Mode=OneWay}" FontFamily="Consolas" FontSize="10" Margin="5,0,0,0" HorizontalContentAlignment="Left" VerticalContentAlignment="Center" Padding="0,2,0,0" />
             </Grid>
 
             <Grid Grid.Column="1">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition/>
-                    <ColumnDefinition/>
                 </Grid.ColumnDefinitions>
-                <CheckBox Grid.Column="1" Content="Ignore Case" IsChecked="{Binding LogHandleIgnoreCase}" FontFamily="Consolas" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-                <CheckBox Grid.Column="0" Content="Auto Scroll" IsChecked="{Binding AutoScroll}" FontFamily="Consolas" FontSize="14" Margin="5" VerticalAlignment="Center" HorizontalAlignment="Left"/>
+                <Grid.RowDefinitions>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                </Grid.RowDefinitions>
+                <CheckBox Grid.Row="1" Content="Ignore Case" IsChecked="{Binding LogHandleIgnoreCase}" FontFamily="Consolas" FontSize="10" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="2,1,2,0"/>
+                <CheckBox Grid.Row="0" Content="Auto Scroll" IsChecked="{Binding AutoScroll}" FontFamily="Consolas" FontSize="10" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="2,1,2,0"/>
             </Grid>
 
             <Grid Grid.Column="2">
@@ -102,8 +111,12 @@
                 <TextBox Grid.Column="1" Text="{Binding LogHandleFilter}" FontFamily="Consolas" FontSize="14" Margin="5" TextAlignment="Right" VerticalContentAlignment="Center" />
             </Grid>
 
-            <Button x:Name="__pauseButton" Grid.Column="3" Content="Pause" Style="{StaticResource RoundedButtonStyle}" FontSize="16" PreviewMouseDown="Pause_PreviewMouseDown" Margin="2"/>
-            <Button Grid.Column="4" Content="Clear" Style="{StaticResource RoundedButtonStyle}" FontSize="16" PreviewMouseDown="Clear_PreviewMouseDown" Margin="2"/>
+            <ComboBox Grid.Column="3" ItemsSource="{Binding SupportedExportFileTypes}" SelectedItem="{Binding SelectedExportFileType}" DisplayMemberPath="Name" Margin="4" VerticalContentAlignment="Center" HorizontalContentAlignment="Right"
+                      IsEnabled="{Binding ExportingLogs, Mode=OneWay, Converter={StaticResource InverseBooleanConverter}}"/>
+            <Button Grid.Column="4" Content="Export" Style="{StaticResource RoundedButtonStyle}" FontSize="16" Margin="2" IsEnabled="{Binding ExportingLogs, Mode=OneWay, Converter={StaticResource InverseBooleanConverter}}"
+                    Command="{Binding ExportLogsCommand, IsAsync=True}"/>
+            <Button Grid.Column="5" Content="{Binding PausedText, Mode=OneWay}" Style="{StaticResource RoundedButtonStyle}" FontSize="16" Command="{Binding TogglePauseCommand}" Margin="2"/>
+            <Button Grid.Column="6" Content="Clear" Style="{StaticResource RoundedButtonStyle}" FontSize="16" Command="{Binding ClearLogsCommand, IsAsync=True}" Margin="2"/>
         </Grid>
     </Grid>
 </UserControl>

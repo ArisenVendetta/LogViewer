@@ -8,9 +8,13 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
+using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json.Linq;
 using PropertyChanged;
+using Microsoft.Win32;
+using Newtonsoft.Json;
+using System.Runtime.InteropServices;
+using System.IO;
 
 namespace LogViewer
 {
@@ -34,12 +38,48 @@ namespace LogViewer
         /// <summary>
         /// Gets the logger instance for this view model.
         /// </summary>
+#pragma warning disable CS8603, CS8601 // CS8603: Possible null reference return.
+                                       // CS8601: Possible null reference assignment.
         internal ILogger Logger => _logger ??= CreateLoggerIfNotDesignMode(); // will never be null except for in design mode, where logging is not needed.
+#pragma warning restore CS8603, CS8601
 
         /// <summary>
         /// Gets the observable collection of log events for data binding.
         /// </summary>
         public LogCollection LogEvents { get; } = [];
+
+        /// <summary>
+        /// Gets the command that exports application logs asynchronously.
+        /// </summary>
+        /// <remarks>
+        /// Use this command to trigger the export of logs for diagnostic or archival purposes.
+        /// Ensure that any required permissions or prerequisites for exporting logs are met before executing the command.
+        /// </remarks>
+        public IAsyncRelayCommand ExportLogsCommand { get; }
+        /// <summary>
+        /// Gets the command that clears all logs asynchronously.
+        /// </summary>
+        public IAsyncRelayCommand ClearLogsCommand { get; }
+        /// <summary>
+        /// Gets the command that toggles the paused state of the application.
+        /// </summary>
+        public RelayCommand TogglePauseCommand { get; }
+        /// <summary>
+        /// Gets the text displayed when the application is in a paused state.
+        /// </summary>
+        public string PausedText { get; internal set; } = "Pause";
+        /// <summary>
+        /// Gets the collection of file types supported for export.
+        /// </summary>
+        public static ObservableCollection<FileType> SupportedExportFileTypes => BaseLogger.SupportedExportFileTypes;
+        /// <summary>
+        /// Gets or sets the file type selected for export operations.
+        /// </summary>
+        public FileType SelectedExportFileType { get; set; } = new FileType("JSON", ".json");
+        public int PauseBufferCount
+        {
+            get => _pauseBuffer?.Count ?? 0;
+        }
 
         /// <summary>
         /// Gets or sets whether log updates are paused.
@@ -59,10 +99,15 @@ namespace LogViewer
                         ResumeAndFlushLogs();
                     }
                 }
+                PausedText = _isPaused ? "Resume" : "Pause";
             }
         }
 
+        public bool ExportingLogs { get; private set; }
+
         public bool AutoScroll { get; set; } = true;
+
+        public string LogExportFormat { get; set; } = BaseLogger.LogExportFormat;
 
         /// <summary>
         /// Gets or sets whether log handle filtering is case-insensitive.
@@ -107,14 +152,22 @@ namespace LogViewer
         /// <param name="logHandleFilter">Optional initial log handle filter.</param>
         /// <exception cref="ArgumentNullException">Thrown if dispatcher is null.</exception>
         /// <exception cref="InvalidOperationException">Thrown if logger factory is not initialized.</exception>
+#pragma warning disable CS8618, CS8601 // CS8618: Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+                                       // CS8601: Possible null reference assignment.
         public LogControlViewModel(Dispatcher dispatcher, string? logHandleFilter = null)
         {
             _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
             LogHandleFilter = logHandleFilter ?? string.Empty;
-
             _logger = CreateLoggerIfNotDesignMode(); // will never be null except for in design mode, where logging is not needed.
             BaseLogger.DebugLogEvent += OnLogEventAsync;
+
+            ClearLogsCommand = new AsyncRelayCommand(ClearLogsAsync);
+            TogglePauseCommand = new(() => IsPaused = !IsPaused);
+            ExportLogsCommand = new AsyncRelayCommand(async () => await ExportLogsAsync());
+
+            SelectedExportFileType = SupportedExportFileTypes.FirstOrDefault() ?? new FileType("JSON", ".json");
         }
+#pragma warning restore CS8601, CS8601
 
         /// <summary>
         /// Needed to move creation of logger to a separate method check for design mode preventing the exception from showing in the XAML designer
@@ -148,10 +201,7 @@ namespace LogViewer
                 }
 
                 // Ensure log updates are performed on the UI thread.
-                if (_dispatcher.CheckAccess())
-                    await AddAndTrimLogEventsIfNeededAsync(e);
-                else
-                    await _dispatcher.InvokeAsync(async () => await AddAndTrimLogEventsIfNeededAsync(e));
+                await DispatchIfNecessaryAsync(async () => await AddAndTrimLogEventsIfNeededAsync(e));
             }
         }
 
@@ -182,6 +232,21 @@ namespace LogViewer
             return $"^(?:{string.Join("|", parts)})$";
         }
 
+        /// <summary>
+        /// Sets the log handle filter to the specified regular expression pattern if it is valid.
+        /// </summary>
+        /// <remarks>
+        /// The method validates the provided regular expression pattern by attempting to create a new  <see cref="Regex"/> instance.
+        /// If the pattern is invalid, the filter remains unchanged.
+        /// </remarks>
+        /// <param name="filter">
+        /// The regular expression pattern to use as the log handle filter.
+        /// If <paramref name="filter"/> is  <see langword="null"/> or consists only of whitespace, a default pattern of <c>".*"</c> is used, which matches all log handles.
+        /// </param>
+        /// <returns>
+        /// <see langword="true"/> if the specified regular expression pattern is valid and the filter is updated;
+        /// otherwise, <see langword="false"/> if the pattern is invalid.
+        /// </returns>
         internal bool SetRegexFilterIfValid(string? filter)
         {
             if (string.IsNullOrWhiteSpace(filter)) filter = ".*";
@@ -208,10 +273,7 @@ namespace LogViewer
         {
             try
             {
-                if (_dispatcher.CheckAccess())
-                    LogEvents.Clear();
-                else
-                    await _dispatcher.InvokeAsync(() => LogEvents.Clear());
+                await DispatchIfNecessaryAsync(() => LogEvents.Clear());
             }
             catch (Exception ex)
             {
@@ -237,10 +299,7 @@ namespace LogViewer
 
                 foreach (var logEvent in tempCopy)
                 {
-                    if (_dispatcher.CheckAccess())
-                        LogEvents.Add(logEvent);
-                    else
-                        await _dispatcher.InvokeAsync(() => LogEvents.Add(logEvent));
+                    await DispatchIfNecessaryAsync(() => LogEvents.Add(logEvent));
                 }
             }
             catch (Exception ex)
@@ -262,10 +321,7 @@ namespace LogViewer
                 // Add all buffered events to the collection.
                 var temp = _pauseBuffer.Take(_pauseBuffer.Count - 1).ToList();
                 last = _pauseBuffer.Last();
-                if (_dispatcher.CheckAccess())
-                    LogEvents.AddRange(new List<LogEventArgs>(_pauseBuffer));
-                else
-                    _dispatcher.Invoke(() => LogEvents.AddRange(new List<LogEventArgs>(_pauseBuffer)));
+                DispatchIfNecessary(() => LogEvents.AddRange(new List<LogEventArgs>(_pauseBuffer)));
                 _pauseBuffer.Clear();
             }
             AddAndTrimLogEventsIfNeededAsync(last).GetAwaiter().GetResult();
@@ -279,20 +335,14 @@ namespace LogViewer
         {
             try
             {
-                if (_dispatcher.CheckAccess())
-                    LogEvents.Add(e);
-                else
-                    await _dispatcher.InvokeAsync(() => LogEvents.Add(e));
+                await DispatchIfNecessaryAsync(() => LogEvents.Add(e));
 
                 int overFlow = LogEvents.Count - MaxLogSize;
                 if (overFlow > 0)
                 {
                     // Remove a little more than the overflow to reduce frequent trimming.
                     int amountToRemove = overFlow + ((int)(MaxLogSize * 0.1));
-                    if (_dispatcher.CheckAccess())
-                        LogEvents.RemoveRange(0, amountToRemove); // Remove oldest
-                    else
-                        await _dispatcher.InvokeAsync(() => LogEvents.RemoveRange(0, amountToRemove)); // Remove oldest
+                    await DispatchIfNecessaryAsync(() => LogEvents.RemoveRange(0, amountToRemove)); // Remove oldest
                 }
             }
             catch (Exception ex)
@@ -303,6 +353,218 @@ namespace LogViewer
             {
 
             }
+        }
+
+        /// <summary>
+        /// Executes the specified callback on the dispatcher thread if the current thread does not have access to it.
+        /// </summary>
+        /// <remarks>If the current thread has access to the dispatcher, the callback is executed
+        /// immediately.  Otherwise, the callback is invoked on the dispatcher thread.</remarks>
+        /// <typeparam name="T">The type of the result returned by the callback.</typeparam>
+        /// <param name="callback">The function to execute. This function is invoked either directly or through the dispatcher.</param>
+        private void DispatchIfNecessary<T>(Func<T> callback)
+        {
+            if (_dispatcher.CheckAccess())
+            {
+                callback();
+            }
+            else
+            {
+                _dispatcher.Invoke(callback);
+            }
+        }
+
+        /// <summary>
+        /// Executes the specified callback on the dispatcher thread if the current thread does not have access to it.
+        /// </summary>
+        /// <remarks>If the current thread has access to the dispatcher, the callback is executed
+        /// immediately.  Otherwise, the callback is dispatched asynchronously to the dispatcher thread.</remarks>
+        /// <param name="callback">The action to be executed. Cannot be <see langword="null"/>.</param>
+        /// <returns>A task that represents the asynchronous operation.</returns>
+        private async Task DispatchIfNecessaryAsync(Action callback)
+        {
+            if (_dispatcher.CheckAccess())
+            {
+                callback();
+            }
+            else
+            {
+                await _dispatcher.InvokeAsync(callback);
+            }
+        }
+
+        /// <summary>
+        /// Executes the specified callback on the dispatcher thread if the current thread does not have access to it.
+        /// </summary>
+        /// <remarks>If the current thread has access to the dispatcher, the callback is executed
+        /// synchronously on the same thread. Otherwise, the callback is dispatched to the dispatcher thread and
+        /// executed asynchronously.</remarks>
+        /// <typeparam name="T">The type of the value returned by the callback.</typeparam>
+        /// <param name="callback">The function to execute. This function is invoked either directly or via the dispatcher, depending on thread
+        /// access.</param>
+        /// <returns>A task that represents the asynchronous operation. The task's result is the value returned by the callback.</returns>
+        private async Task<T> DispatchIfNecessaryAsync<T>(Func<T> callback)
+        {
+            if (_dispatcher.CheckAccess())
+            {
+                return callback();
+            }
+            else
+            {
+                return await _dispatcher.InvokeAsync(callback);
+            }
+        }
+
+        /// <summary>
+        /// Displays a save file dialog to the user and returns the selected file path, including the file name.
+        /// </summary>
+        /// <remarks>
+        /// The dialog allows the user to specify a file name and location for exporting logs.
+        /// The file type and extension are determined by the <see cref="SelectedExportFileType"/> property.
+        /// If the user cancels the dialog or provides an invalid file path, the method returns <see langword="null"/>.
+        /// </remarks>
+        /// <returns>
+        /// The full file path, including the file name, selected by the user;
+        /// or <see langword="null"/> if the dialog is canceled or the file path is invalid.
+        /// </returns>
+        private string? GetLogExportFilePathWithName()
+        {
+            SaveFileDialog saveFileDialog = new()
+            {
+                Title = "Export Logs",
+                Filter = $"{SelectedExportFileType.Name} (*{SelectedExportFileType.Extension})|*{SelectedExportFileType.Extension}",
+                DefaultExt = SelectedExportFileType?.Extension ?? ".json",
+                AddExtension = true
+            };
+
+            if (saveFileDialog.ShowDialog() == true)
+            {
+                // Ensure the file path is valid and return it.
+                string filePath = saveFileDialog.FileName;
+                if (!string.IsNullOrWhiteSpace(filePath))
+                {
+                    return filePath;
+                }
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Exports the current log events to a file asynchronously.
+        /// </summary>
+        /// <remarks>This method exports the log events to a file in the format specified by the selected
+        /// export file type. Supported file types include JSON, plain text, and CSV. The file path is determined
+        /// dynamically,  and the user may cancel the operation during the file path selection process. If the export
+        /// fails,  the returned <see cref="ExportLogResult"/> will contain an error message and, if applicable, an
+        /// exception.</remarks>
+        /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the export operation.</param>
+        /// <returns>An <see cref="ExportLogResult"/> object containing the result of the export operation,  including whether it
+        /// was successful, the file path, file type, and any error information.</returns>
+        public async Task<ExportLogResult> ExportLogsAsync(CancellationToken cancellationToken = default)
+        {
+            var output = new ExportLogResult()
+            {
+                Success = false
+            };
+            bool skipRestoreExportingLogs = ExportingLogs;
+            try
+            {
+                ExportingLogs = true;
+
+                string? filePath = await DispatchIfNecessaryAsync(GetLogExportFilePathWithName);
+                if (string.IsNullOrWhiteSpace(filePath))
+                {
+                    output.ErrorMessage = "Export cancelled by user.";
+                    return output;
+                }
+
+                var exportLogs = new List<LogEventArgs>(LogEvents);
+                output.FileType = SelectedExportFileType;
+                output.FilePath = filePath;
+                StringBuilder contents = (SelectedExportFileType?.Extension ?? ".json") switch
+                {
+                    ".json" => await GetLogsAsJsonTextAsync(exportLogs),
+                    ".txt"  => await GetLogsAsTextAsync(exportLogs, LogExportFormat),
+                    ".csv"  => await GetLogsAsCSVTextAsync(exportLogs),
+                    _       => new StringBuilder()
+                };
+
+                await using var writer = new StreamWriter(filePath, append: false, encoding: Encoding.UTF8);
+                await writer.WriteAsync(contents.ToString().AsMemory(), cancellationToken: cancellationToken);
+                await writer.FlushAsync(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                output.ErrorMessage = "Error while exporting logs in LogControlViewModel";
+                output.Exception = ex;
+                BaseLogger.LogErrorException(_logger, output.ErrorMessage, ex);
+            }
+            finally
+            {
+                if (!skipRestoreExportingLogs) ExportingLogs = false;
+            }
+            return output;
+        }
+
+        /// <summary>
+        /// Converts a collection of log events into a JSON-formatted string asynchronously.
+        /// </summary>
+        /// <param name="logEvents">A collection of <see cref="LogEventArgs"/> representing the log events to be serialized. Cannot be <see
+        /// langword="null"/>.</param>
+        /// <returns>A <see cref="StringBuilder"/> containing the JSON-formatted representation of the log events.</returns>
+        private async static Task<StringBuilder> GetLogsAsJsonTextAsync(IEnumerable<LogEventArgs> logEvents)
+        {
+            ArgumentNullException.ThrowIfNull(logEvents, paramName: nameof(logEvents));
+
+            return await Task.Run(() => new StringBuilder(JsonConvert.SerializeObject(logEvents, Formatting.Indented)));
+        }
+
+        /// <summary>
+        /// Asynchronously converts a collection of log events into a single text representation.
+        /// </summary>
+        /// <remarks>This method processes the log events on a background thread to avoid blocking the
+        /// calling thread. Each log event is formatted using the <see cref="LogEventArgs.FormatLogMessage"/> method,
+        /// with the specified or default format.</remarks>
+        /// <param name="logEvents">A collection of <see cref="LogEventArgs"/> instances representing the log events to process. Cannot be <see
+        /// langword="null"/>.</param>
+        /// <param name="logExportFormat">An optional format string used to format each log event. If <see langword="null"/>, a default format is
+        /// applied.</param>
+        /// <returns>A <see cref="StringBuilder"/> containing the formatted text representation of the provided log events.</returns>
+        private async static Task<StringBuilder> GetLogsAsTextAsync(IEnumerable<LogEventArgs> logEvents, string? logExportFormat = null)
+        {
+            ArgumentNullException.ThrowIfNull(logEvents, paramName: nameof(logEvents));
+
+            return await Task.Run(() =>
+            {
+                StringBuilder sb = new();
+                foreach (var logEvent in logEvents)
+                {
+                    sb.AppendLine(logEvent.FormatLogMessage(logExportFormat));
+                }
+                return sb;
+            });
+        }
+
+        /// <summary>
+        /// Converts a collection of log events into a CSV-formatted string asynchronously.
+        /// </summary>
+        /// <remarks>This method uses the CsvHelper library to serialize the provided log events into CSV
+        /// format. The returned <see cref="StringBuilder"/> contains the CSV data, which can be further processed or
+        /// saved as needed.</remarks>
+        /// <param name="logEvents">The collection of log events to be converted. Cannot be <see langword="null"/>.</param>
+        /// <returns>A <see cref="StringBuilder"/> containing the CSV-formatted representation of the log events.</returns>
+        private async static Task<StringBuilder> GetLogsAsCSVTextAsync(IEnumerable<LogEventArgs> logEvents)
+        {
+            ArgumentNullException.ThrowIfNull(logEvents, paramName: nameof(logEvents));
+
+            StringBuilder sb = new();
+
+            await using var writer = new StringWriter(sb);
+            await using var csv = new CsvHelper.CsvWriter(writer, System.Globalization.CultureInfo.InvariantCulture);
+            csv.Context.RegisterClassMap<LogEventArgsMap>();
+            await csv.WriteRecordsAsync(logEvents);
+
+            return sb;
         }
 
         #region IDisposable Support
