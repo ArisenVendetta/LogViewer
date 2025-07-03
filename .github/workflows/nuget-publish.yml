@@ -23,7 +23,7 @@ jobs:
         dotnet-version: 8.0.x
 
     - name: List working directory
-      run: echo %cd%
+      run: pwd
     
     - name: Ensure packages directory exists
       run: mkdir -p ./nupkgs
@@ -38,4 +38,4 @@ jobs:
       run: dotnet pack ./LogViewer/LogViewer.csproj --configuration Release --output ../nupkgs
 
     - name: List nupkgs contents
-      run: dir ./nupkgs
+      run: dir ../nupkgs
