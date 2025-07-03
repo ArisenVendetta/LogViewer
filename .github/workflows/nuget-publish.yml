@@ -1,0 +1,35 @@
+name: Publish NuGet Package
+
+on:
+  push:
+    tags:
+      - 'v*' # Triggers on version tags like v1.0.0
+
+jobs:
+  build:
+    runs-on: windows-latest
+    environment: NuGet Packages
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Ensure packages directory exists
+      run: mkdir -p ./nupkgs
+    
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build and pack
+      run: dotnet pack --configuration Release --output ./nupkgs
+
+    - name: Publish to NuGet
+      uses: nuget/actions@v2
+      with:
+        nuget-api-key: ${{ secrets.NUGET_API_KEY }}
+        packages: ./nupkgs/*.nupkg
