@@ -429,7 +429,7 @@ namespace LogViewer
         }
 
         /// <summary>
-        /// Raises both <see cref="BaseLogger.DebugLogEvent"/> (logcontrol) and <see cref="BaseLogger.LogEvent"> (subscribers) events for the specified event arguments.
+        /// Raises both <see cref="DebugLogEvent"/> (logcontrol) and <see cref="LogEvent" /> (subscribers) events for the specified event arguments.
         /// </summary>
         /// <param name="eventArgs">The event arguments to pass to subscribers.</param>
         protected void OnLogEvent(LogEventArgs eventArgs)

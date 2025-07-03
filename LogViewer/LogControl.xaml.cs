@@ -164,7 +164,7 @@ namespace LogViewer
         }
 
         /// <summary>
-        /// Handles changes to the <see cref="LogControl.LogHandleFilterProperty"/> dependency property.
+        /// Handles changes to the <see cref="HandleFilterProperty"/> dependency property.
         /// </summary>
         /// <remarks>This method updates the <c>LogHandleFilter</c> property of the associated view model,
         /// if available, to reflect the new value of the dependency property.</remarks>
@@ -349,6 +349,12 @@ namespace LogViewer
         #endregion
 
         #region IDisposable Support
+        /// <summary>
+        /// Releases the resources used by the current instance of the class.
+        /// </summary>
+        /// <remarks>This method should be called when the instance is no longer needed to ensure proper
+        /// cleanup of resources.</remarks>
+        /// <param name="disposing"></param>
         protected virtual void Dispose(bool disposing)
         {
             if (!_disposedValue)
@@ -362,6 +368,11 @@ namespace LogViewer
             }
         }
 
+        /// <summary>
+        /// Releases the resources used by the current instance of the class.
+        /// </summary>
+        /// <remarks>This method should be called when the instance is no longer needed to free up
+        /// resources.  It suppresses finalization to optimize garbage collection.</remarks>
         public void Dispose()
         {
             // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method

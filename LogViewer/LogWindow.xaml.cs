@@ -16,6 +16,11 @@ namespace LogViewer
     /// </summary>
     public partial class LogWindow : Window
     {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="LogWindow"/> class.
+        /// </summary>
+        /// <remarks>This constructor sets up the <see cref="LogWindow"/> by initializing its
+        /// components.</remarks>
         public LogWindow()
         {
             InitializeComponent();

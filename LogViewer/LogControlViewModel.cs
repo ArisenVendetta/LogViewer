@@ -77,6 +77,9 @@ namespace LogViewer
         /// Gets or sets the file type selected for export operations.
         /// </summary>
         public FileType SelectedExportFileType { get; set; } = new FileType("JSON", ".json");
+        /// <summary>
+        /// Gets the number of items currently in the pause buffer.
+        /// </summary>
         public int PauseBufferCount
         {
             get => _pauseBuffer?.Count ?? 0;
@@ -602,6 +605,13 @@ namespace LogViewer
         }
 
         #region IDisposable Support
+        /// <summary>
+        /// Releases the resources used by the current instance of the class.
+        /// </summary>
+        /// <remarks>This method should be called when the instance is no longer needed to free up
+        /// resources.  If the instance is used after calling this method, it may result in undefined
+        /// behavior.</remarks>
+        /// <param name="disposing"></param>
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)
@@ -615,6 +625,11 @@ namespace LogViewer
             }
         }
 
+        /// <summary>
+        /// Releases the resources used by the current instance of the class.
+        /// </summary>
+        /// <remarks>This method should be called when the instance is no longer needed to free up
+        /// resources.  It suppresses finalization to optimize garbage collection.</remarks>
         public void Dispose()
         {
             // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method

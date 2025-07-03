@@ -6,8 +6,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <AssemblyVersion>0.1.0.6</AssemblyVersion>
-    <FileVersion>0.1.0.6</FileVersion>
+    <AssemblyVersion>0.1.0.7</AssemblyVersion>
+    <FileVersion>0.1.0.7</FileVersion>
     <Title>Real Time Log Viewer</Title>
     <Description>A real time log viewer control that hooks into any provided ILoggerFactory, so it is easy to integrate with existing logging frameworks.</Description>
     <PackageProjectUrl>https://github.com/ArisenVendetta/LogViewer</PackageProjectUrl>
@@ -29,6 +29,7 @@
     <PackageId>RealTimeLogStream</PackageId>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

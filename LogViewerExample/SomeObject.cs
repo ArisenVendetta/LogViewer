@@ -37,7 +37,7 @@ namespace LogViewerExample
             }
             try
             {
-                while (cts.Token.IsCancellationRequested == false)
+                while (!cts.Token.IsCancellationRequested)
                 {
                     LogMethod($"This is an auto-generated log message [{LogMethod.Method.Name}, invoked by {nameof(SomeAction)}]");
                     await Task.Delay(random.Next(150, 750), cts.Token);
