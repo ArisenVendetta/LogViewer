@@ -22,6 +22,9 @@ jobs:
       with:
         dotnet-version: 8.0.x
 
+    - name: List working directory
+      run: echo %cd%
+    
     - name: Ensure packages directory exists
       run: mkdir -p ./nupkgs
     
@@ -32,15 +35,7 @@ jobs:
       run: dotnet build --configuration Release
 
     - name: Build and pack
-      run: dotnet pack --configuration Release --output ../nupkgs
-
-    - name: List current directory contents
-      run: dir
+      run: dotnet pack ./LogViewer/LogViewer.csproj --configuration Release --output ../nupkgs
 
     - name: List nupkgs contents
       run: dir ./nupkgs
-
-    - name: Publish to GitHub Packages
-      run: dotnet nuget push ./nupkgs/*.nupkg --source "github" --api-key ${{ secrets.GH_PKG_TOKEN }}
-      env:
-        nuget-api-key: ${{ secrets.GH_PKG_TOKEN }}
