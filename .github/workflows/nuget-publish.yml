@@ -44,6 +44,11 @@ jobs:
       run: pwd
 
     - name: Publish to GitHub Packages
-      run: dotnet nuget push ./nupkgs/*.nupkg --source "github" --api-key ${{ secrets.GH_PKG_TOKEN }}
+      run: |
+        for file in ./nupkgs/**.nupkg ./nupkgs/**.snupkg; do
+          echo "Publishing $file"
+          dotnet nuget push "$file" --source "github" --api-key ${{ secrets.GH_PKG_TOKEN }}
+        done
+      shell: bash
       env:
         nuget-api-key: ${{ secrets.GH_PKG_TOKEN }}
