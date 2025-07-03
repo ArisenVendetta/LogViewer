@@ -20,7 +20,6 @@ LogViewer provides structured, color-coded, and filterable logging with MVVM-fri
 - **Auto-scroll** to the latest log entry or manual scrolling.
 - **Support for large log sizes** with configurable memory limits.
 - **Built-in commands** for exporting, clearing, and pausing logs.
-- **Seamless integration with `CommunityToolkit.Mvvm` for command and property binding**.
 
 ---
 
@@ -41,7 +40,7 @@ This project uses the following third-party libraries, licensed under the MIT Li
 - [Newtonsoft.Json](https://www.newtonsoft.com/json)
 - [PropertyChanged.Fody](https://github.com/Fody/PropertyChanged)
 
-The full text of the MIT License for these libraries can be found in the `THIRD_PARTY_LICENSES\MIT.txt` file.
+The full text of the MIT License for these libraries can be found in the `THIRD_PARTY_LICENSES\MIT.md` file.
 
 
 This project uses the following third-party libraries, licensed under the Apache-2.0 License:

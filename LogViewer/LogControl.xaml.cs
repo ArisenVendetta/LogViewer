@@ -127,6 +127,32 @@ namespace LogViewer
         }
 
         /// <summary>
+        /// Gets or sets a value indicating whether the handle filter is visible.
+        /// </summary>
+        public bool HandleFilterVisible
+        {
+            get => (bool)GetValue(HandleFilterVisibleProperty);
+            set
+            {
+                SetValue(HandleFilterVisibleProperty, value);
+                _viewModel.HandleFilterVisible = value;
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether pausing is enabled.
+        /// </summary>
+        public bool PausingEnabled
+        {
+            get => (bool)GetValue(PausingEnabledProperty);
+            set
+            {
+                SetValue(PausingEnabledProperty, value);
+                _viewModel.PausingEnabled = value;
+            }
+        }
+
+        /// <summary>
         /// Handles changes to the <see cref="MaxLogSize"/> dependency property.
         /// </summary>
         /// <remarks>This method updates the <c>MaxLogSize</c> property of the associated view model, if
@@ -191,6 +217,36 @@ namespace LogViewer
                 {
                     control._scrollViewer.ScrollToEnd();
                 }
+            }
+        }
+
+        /// <summary>
+        /// Handles changes to the <see cref="HandleFilterVisible"/> dependency property.
+        /// </summary>
+        /// <remarks>This method updates the <c>HandleFilterVisible</c> property of the associated view
+        /// model  when the dependency property value changes.</remarks>
+        /// <param name="d">The object on which the property value has changed. Must be of type <see cref="LogControl"/>.</param>
+        /// <param name="e">The event data containing information about the property change, including the old and new values.</param>
+        private static void OnHandleFilterVisibleChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is LogControl control && control._viewModel != null)
+            {
+                control._viewModel.HandleFilterVisible = (bool)e.NewValue;
+            }
+        }
+
+        /// <summary>
+        /// Handles changes to the <see cref="PausingEnabled"/> dependency property.
+        /// </summary>
+        /// <remarks>This method updates the associated view model's <see cref="PausingEnabled"/> property
+        /// when the dependency property value changes.</remarks>
+        /// <param name="d">The <see cref="DependencyObject"/> on which the property value has changed.</param>
+        /// <param name="e">The event data containing information about the property change, including the old and new values.</param>
+        private static void OnPausingEnabledChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is LogControl control && control._viewModel != null)
+            {
+                control._viewModel.PausingEnabled = (bool)e.NewValue;
             }
         }
 
@@ -270,6 +326,30 @@ namespace LogViewer
             typeof(bool),
             typeof(LogControl),
             new PropertyMetadata(true, OnAutoScrollChanged));
+
+        /// <summary>
+        /// Identifies the <see cref="HandleFilterVisible"/> dependency property, which determines whether the handle
+        /// filter is visible.
+        /// </summary>
+        /// <remarks>This property is a dependency property and can be used in data binding or style
+        /// setters.</remarks>
+        public static readonly DependencyProperty HandleFilterVisibleProperty = DependencyProperty.Register(
+            nameof(HandleFilterVisible),
+            typeof(bool),
+            typeof(LogControl),
+            new PropertyMetadata(true, OnHandleFilterVisibleChanged));
+
+        /// <summary>
+        /// Identifies the <see cref="PausingEnabled"/> dependency property, which determines whether pausing is enabled
+        /// for the log control.
+        /// </summary>
+        /// <remarks>This property is a dependency property and can be used in XAML bindings. The default
+        /// value is <see langword="true"/>.</remarks>
+        public static readonly DependencyProperty PausingEnabledProperty = DependencyProperty.Register(
+            nameof(PausingEnabledProperty),
+            typeof(bool),
+            typeof(LogControl),
+            new PropertyMetadata(true, OnPausingEnabledChanged));
         #endregion
 
         #region IDisposable Support

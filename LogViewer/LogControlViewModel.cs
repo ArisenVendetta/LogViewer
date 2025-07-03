@@ -32,6 +32,7 @@ namespace LogViewer
         private bool disposedValue;
         private ILogger _logger;
         private bool _isPaused;
+        private bool _pauseEnabled = true;
         private readonly List<LogEventArgs> _pauseBuffer = [];
         private readonly object _pauseLock = new();
 
@@ -103,11 +104,44 @@ namespace LogViewer
             }
         }
 
+        /// <summary>
+        /// Gets or sets a value indicating whether pausing is enabled.
+        /// </summary>
+        /// <remarks>When set to <see langword="false"/>, any active paused state will be
+        /// cleared.</remarks>
+        public bool PausingEnabled
+        {
+            get => _pauseEnabled;
+            set
+            {
+                if (_pauseEnabled == value) return;
+                _pauseEnabled = value;
+                if (!_pauseEnabled && IsPaused)
+                {
+                    IsPaused = false;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets a value indicating whether logs are currently being exported.
+        /// </summary>
         public bool ExportingLogs { get; private set; }
 
+        /// <summary>
+        /// Gets or sets a value indicating whether automatic scrolling is enabled.
+        /// </summary>
         public bool AutoScroll { get; set; } = true;
 
+        /// <summary>
+        /// Gets or sets the format used for exporting log entries.
+        /// </summary>
         public string LogExportFormat { get; set; } = BaseLogger.LogExportFormat;
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the filter handling UI is visible.
+        /// </summary>
+        public bool HandleFilterVisible { get; set; } = true;
 
         /// <summary>
         /// Gets or sets whether log handle filtering is case-insensitive.
@@ -162,7 +196,11 @@ namespace LogViewer
             BaseLogger.DebugLogEvent += OnLogEventAsync;
 
             ClearLogsCommand = new AsyncRelayCommand(ClearLogsAsync);
-            TogglePauseCommand = new(() => IsPaused = !IsPaused);
+            TogglePauseCommand = new(() =>
+            {
+                if (PausingEnabled)
+                    IsPaused = !IsPaused;
+            });
             ExportLogsCommand = new AsyncRelayCommand(async () => _ = await ExportLogsAsync());
 
             SelectedExportFileType = SupportedExportFileTypes.FirstOrDefault() ?? new FileType("JSON", ".json");

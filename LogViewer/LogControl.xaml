@@ -101,7 +101,7 @@
                 <CheckBox Grid.Row="0" Content="Auto Scroll" IsChecked="{Binding AutoScroll}" FontFamily="Consolas" FontSize="10" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="2,1,2,0"/>
             </Grid>
 
-            <Grid Grid.Column="2">
+            <Grid Grid.Column="2" Visibility="{Binding HandleFilterVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="65"/>
                     <ColumnDefinition/>
@@ -115,7 +115,8 @@
                       IsEnabled="{Binding ExportingLogs, Mode=OneWay, Converter={StaticResource InverseBooleanConverter}}"/>
             <Button Grid.Column="4" Content="Export" Style="{StaticResource RoundedButtonStyle}" FontSize="16" Margin="2" IsEnabled="{Binding ExportingLogs, Mode=OneWay, Converter={StaticResource InverseBooleanConverter}}"
                     Command="{Binding ExportLogsCommand, IsAsync=True}"/>
-            <Button Grid.Column="5" Content="{Binding PausedText, Mode=OneWay}" Style="{StaticResource RoundedButtonStyle}" FontSize="16" Command="{Binding TogglePauseCommand}" Margin="2"/>
+            <Button Grid.Column="5" Content="{Binding PausedText, Mode=OneWay}" Style="{StaticResource RoundedButtonStyle}" FontSize="16" Command="{Binding TogglePauseCommand}"
+                    Visibility="{Binding PausingEnabled, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="2"/>
             <Button Grid.Column="6" Content="Clear" Style="{StaticResource RoundedButtonStyle}" FontSize="16" Command="{Binding ClearLogsCommand, IsAsync=True}" Margin="2"/>
         </Grid>
     </Grid>
