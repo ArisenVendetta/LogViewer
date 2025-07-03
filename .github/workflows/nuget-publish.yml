@@ -39,3 +39,8 @@ jobs:
 
     - name: List nupkgs contents
       run: dir ./nupkgs
+
+    - name: Publish to GitHub Packages
+      run: dotnet nuget push ./nupkgs/*.nupkg --source "github" --api-key ${{ secrets.GH_PKG_TOKEN }}
+      env:
+        nuget-api-key: ${{ secrets.GH_PKG_TOKEN }}
