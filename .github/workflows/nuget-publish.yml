@@ -8,7 +8,7 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    environment: NuGet Packages
+    environment: Package Creation
 
     steps:
     - name: Checkout code
@@ -28,8 +28,7 @@ jobs:
     - name: Build and pack
       run: dotnet pack --configuration Release --output ./nupkgs
 
-    - name: Publish to NuGet
-      uses: nuget/actions@v2
-      with:
-        nuget-api-key: ${{ secrets.NUGET_API_KEY }}
-        packages: ./nupkgs/*.nupkg
+    - name: Publish to GitHub Packages
+      run: dotnet nuget push ./nupkgs/*.nupkg --source "github" --api-key ${{ secrets.GITHUB_TOKEN }}
+      env:
+        nuget-api-key: ${{ secrets.GH_PKG_TOKEN }}
