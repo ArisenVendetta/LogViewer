@@ -25,6 +25,9 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
 
+    - name: Build the project
+      run: dotnet build --configuration Release
+
     - name: Build and pack
       run: dotnet pack --configuration Release --output ./nupkgs
 
