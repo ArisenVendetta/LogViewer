@@ -35,12 +35,15 @@ jobs:
       run: dotnet build --configuration Release
 
     - name: Build and pack
-      run: dotnet pack ./LogViewer/LogViewer.csproj --configuration Release --output ../nupkgs
+      run: dotnet pack ./LogViewer/LogViewer.csproj --configuration Release --output ./nupkgs
 
     - name: List nupkgs contents
-      run: dir ../nupkgs
+      run: dir ./nupkgs/*.nupkg
+
+    - name: List working directory
+      run: pwd
 
     - name: Publish to GitHub Packages
-      run: dotnet nuget push ../nupkgs/*.nupkg --source "github" --api-key ${{ secrets.GH_PKG_TOKEN }}
+      run: dotnet nuget push ./nupkgs/*.nupkg --source "github" --api-key ${{ secrets.GH_PKG_TOKEN }}
       env:
         nuget-api-key: ${{ secrets.GH_PKG_TOKEN }}
