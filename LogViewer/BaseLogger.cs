@@ -101,7 +101,7 @@ namespace LogViewer
             if (LoggerFactory is null) throw new InvalidOperationException($"Must call {nameof(BaseLogger)}.{nameof(Initialize)} before creating an instance of {nameof(BaseLogger)}");
 
             // if for some reason this was set to null because someone wanted to not exclude anything, we reset it to an empty array which means no characters are excluded
-            if (ExcludeCharsFromHandle is null) ExcludeCharsFromHandle = [];
+            ExcludeCharsFromHandle ??= [];
 
             // sanitize the handle by removing unwanted characters and trimming whitespace
             // consumers of the code should be setting any characters they want to exclude in the static property BaseLogger.ExcludeCharsFromHandle

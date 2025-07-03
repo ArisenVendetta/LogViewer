@@ -21,6 +21,9 @@ jobs:
 
     - name: Ensure packages directory exists
       run: mkdir -p ./nupkgs
+      
+    - name: Use custom NuGet configuration
+      run: dotnet nuget add source --configfile nuget.config
     
     - name: Restore dependencies
       run: dotnet restore

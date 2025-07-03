@@ -51,16 +51,12 @@ namespace LogViewer
                 if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add)
                 {
                     // Lazily find the ScrollViewer for the log list if not already found.
-                    if (_scrollViewer is null)
-                        _scrollViewer = GetScrollViewer(__logList);
+                    _scrollViewer ??= GetScrollViewer(__logList);
 
                     if (_scrollViewer is not null && _viewModel.AutoScroll)
                     {
                         // Scroll to the end on the UI thread at background priority.
-                        Dispatcher.InvokeAsync(() =>
-                        {
-                            _scrollViewer.ScrollToEnd();
-                        }, DispatcherPriority.Background);
+                        Dispatcher.InvokeAsync(() => _scrollViewer.ScrollToEnd(), DispatcherPriority.Background);
                     }
                 }
             };

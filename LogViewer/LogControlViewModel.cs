@@ -327,9 +327,9 @@ namespace LogViewer
             try
             {
                 await ClearLogsAsync();
-                var tempCopy = (BaseLogger.DebugLogQueue?.ToArray() ?? Array.Empty<LogEventArgs>())
-                    .OrderBy(x => x.LogDateTime)
+                var tempCopy = (BaseLogger.DebugLogQueue?.ToArray() ?? [])
                     .Where(e => IsLogEventHandleFiltered(e.LogHandle))
+                    .OrderBy(x => x.LogDateTime)
                     .ToArray();
 
                 // Trim to the most recent MaxLogSize entries if needed.
@@ -358,7 +358,7 @@ namespace LogViewer
             {
                 // Add all buffered events to the collection.
                 var temp = _pauseBuffer.Take(_pauseBuffer.Count - 1).ToList();
-                last = _pauseBuffer.Last();
+                last = _pauseBuffer[^1];
                 DispatchIfNecessary(() => LogEvents.AddRange(new List<LogEventArgs>(_pauseBuffer)));
                 _pauseBuffer.Clear();
             }
@@ -386,10 +386,6 @@ namespace LogViewer
             catch (Exception ex)
             {
                 BaseLogger.LogErrorException(_logger, "Error while adding and trimming log events in LogControlViewModel.", ex);
-            }
-            finally
-            {
-
             }
         }
 

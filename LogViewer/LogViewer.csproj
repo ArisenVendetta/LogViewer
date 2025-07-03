@@ -6,8 +6,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <AssemblyVersion>0.1.0.5</AssemblyVersion>
-    <FileVersion>0.1.0.5</FileVersion>
+    <AssemblyVersion>0.1.0.6</AssemblyVersion>
+    <FileVersion>0.1.0.6</FileVersion>
     <Title>Real Time Log Viewer</Title>
     <Description>A real time log viewer control that hooks into any provided ILoggerFactory, so it is easy to integrate with existing logging frameworks.</Description>
     <PackageProjectUrl>https://github.com/ArisenVendetta/LogViewer</PackageProjectUrl>
@@ -65,7 +65,7 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="CsvHelper" Version="33.1.0" />
     <PackageReference Include="Fody" Version="6.9.2">
-      <PrivateAssets>all</PrivateAssets>
+      <PrivateAssets>All</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.6" />
