@@ -23,7 +23,7 @@ jobs:
         dotnet-version: 8.0.x
 
     - name: Clear NuGet cache
-      run: dotnet nuget locals all --Clear
+      run: dotnet nuget locals all --clear
       
     - name: List working directory
       run: pwd
