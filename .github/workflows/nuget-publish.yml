@@ -33,12 +33,12 @@ jobs:
       run: mkdir -p ./nupkgs
     
     - name: Restore dependencies
-      run: dotnet restore
+      run: dotnet restore --project ./LogViewer/LogViewer.csproj
       env:
         nuget-api-key: ${{ secrets.GH_PKG_TOKEN }}
 
     - name: Build the project
-      run: dotnet build --configuration Release
+      run: dotnet build ./LogViewer/LogViewer.csproj --configuration Release
 
     - name: Build and pack
       run: dotnet pack ./LogViewer/LogViewer.csproj --configuration Release --output ./nupkgs
