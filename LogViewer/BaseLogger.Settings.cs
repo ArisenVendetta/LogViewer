@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics.Contracts;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -11,10 +12,38 @@ namespace LogViewer
 {
     public abstract partial class BaseLogger
     {
-        const string DefaultLogDateTimeFormat = "yyyy-MM-dd HH:mm:ss.fff (zzz)";
-        const string DefaultLogExportFormat = "{timestamp}|{loglevel}|{threadid}|{handle}|{message}";
+        internal const string DefaultLogDateTimeFormat = "yyyy-MM-dd HH:mm:ss.fff (zzz)";
+        internal const string DefaultLogExportFormat = "{timestamp}|{loglevel}|{threadid}|{handle}|{message}";
+        internal const string LogDisplayFormatFallback = "{timestamp} [{handle}] {message}";
+
+        /// <summary>
+        /// Represents the resource key for the <see cref="Converters.ColorToBrushConverter"/>.
+        /// </summary>
+        /// <remarks>This constant can be used to reference the <see cref="Converters.ColorToBrushConverter"/> in
+        /// resource dictionaries or when retrieving the converter from a resource collection.</remarks>
+        public const string ColorToBrushConverterKey = nameof(ColorToBrushConverterKey);
+        /// <summary>
+        /// Represents the resource key for the <see cref="Converters.InverseBooleanConverter"/>.
+        /// </summary>
+        /// <remarks>This key is used to reference the <see cref="Converters.InverseBooleanConverter"/> that inverts a boolean value
+        /// in data binding scenarios where a true value needs to be displayed as false, and vice
+        /// versa.</remarks>
+        public const string InverseBooleanConverterKey = nameof(InverseBooleanConverterKey);
+        /// <summary>
+        /// Represents the resource key for the <see cref="Converters.LogLevelColorConverter"/>.
+        /// </summary>
+        /// <remarks>This constant can be used to reference the <see cref="Converters.LogLevelColorConverter"/> in
+        /// resource dictionaries or when retrieving the converter from a resource collection.</remarks>
+        public const string LogLevelToBrushConverterKey = nameof(LogLevelToBrushConverterKey);
+        /// <summary>
+        /// Represents the resource key for the BooleanToVisibilityConverter.
+        /// </summary>
+        /// <remarks>This key can be used to reference the BooleanToVisibilityConverter in resource
+        /// dictionaries or other contexts where a resource key is required.</remarks>
+        public const string BooleanToVisibilityConverterKey = nameof(BooleanToVisibilityConverterKey);
 
         private static string _logExportFormat = DefaultLogExportFormat;
+        private static string _defaultLogDisplayFormat = LogDisplayFormatFallback;
 
         /// <summary>
         /// Indicates whether the system has been initialized.
@@ -107,6 +136,20 @@ namespace LogViewer
                     _logExportFormat = DefaultLogExportFormat;
                 else
                     _logExportFormat = value;
+            }
+        }
+        /// <summary>
+        /// Gets or sets the default format string used for displaying log messages.
+        /// </summary>
+        /// <remarks>The format string determines how log messages are structured when displayed.  If the
+        /// value is set to <see langword="null"/> or whitespace, the fallback format is applied.</remarks>
+        public static string DefaultLogDisplayFormat
+        {
+            get => _defaultLogDisplayFormat ??= LogDisplayFormatFallback;
+            set
+            {
+                if (_defaultLogDisplayFormat == value) return;
+                _defaultLogDisplayFormat = string.IsNullOrWhiteSpace(value) ? LogDisplayFormatFallback : value;
             }
         }
         /// <summary>

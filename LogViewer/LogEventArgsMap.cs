@@ -9,7 +9,7 @@ namespace LogViewer
     /// <remarks>This class defines the mapping between the properties of <see cref="LogEventArgs"/> and their
     /// corresponding CSV column names and formats. It is used to configure how instances of <see cref="LogEventArgs"/>
     /// are serialized into CSV format, including custom formatting and value transformations.</remarks>
-    public class LogEventArgsMap : ClassMap<LogEventArgs>
+    internal sealed class LogEventArgsMap : ClassMap<LogEventArgs>
     {
         /// <summary>
         /// Configures the mapping of <see cref="LogEventArgs"/> properties to their corresponding CSV columns.

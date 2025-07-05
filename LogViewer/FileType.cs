@@ -10,7 +10,7 @@ namespace LogViewer
     /// <param name="name"></param>
     /// <param name="extension"></param>
     [AddINotifyPropertyChangedInterface]
-    public class FileType(string name, string extension)
+    public sealed class FileType(string name, string extension)
     {
         /// <summary>
         /// Gets the name associated with the current instance.

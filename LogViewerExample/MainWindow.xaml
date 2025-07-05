@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:LogViewerExample"
         xmlns:logger="clr-namespace:LogViewer;assembly=LogViewer"
         mc:Ignorable="d"
-        Title="MainWindow" Height="650" Width="1100" Topmost="False" Closing="Window_Closing">
+        Title="MainWindow" Height="650" Width="1100" Topmost="True" Closing="Window_Closing">
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -48,8 +48,8 @@
                 <RowDefinition/>
                 <RowDefinition/>
             </Grid.RowDefinitions>
-            <logger:LogControl Grid.Row="0" MaxLogSize="1000" IgnoreCase="True" HandleFilter="SomeObject00[0-4]\d" AutoScroll="True" PausingEnabled="False"/>
-            <logger:LogControl Grid.Row="1" MaxLogSize="1000" IgnoreCase="True" HandleFilter="SomeObject00[5-9]\d" AutoScroll="True" HandleFilterVisible="False"/>
+            <logger:LogControl Grid.Row="0" MaxLogSize="10000" IgnoreCase="True" AutoScroll="True" PausingEnabled="False" LogDisplayFormat="{}{timestamp}|{threadid}|{handle}|{message}" LogDisplayFormatDelimiter="|" />
+            <logger:LogControl Grid.Row="1" MaxLogSize="10000" IgnoreCase="True" HandleFilter="SomeObject00[5-9]\d" AutoScroll="True" HandleFilterVisible="False" />
         </Grid>
     </Grid>
 </Window>

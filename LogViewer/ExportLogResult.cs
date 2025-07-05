@@ -6,7 +6,7 @@
     /// <remarks>This class provides details about the outcome of a log export operation, including whether
     /// the operation  was successful, any error messages or exceptions encountered, and information about the exported
     /// file.</remarks>
-    public class ExportLogResult
+    public sealed class ExportLogResult
     {
         /// <summary>
         /// Gets or sets a value indicating whether the operation was successful.

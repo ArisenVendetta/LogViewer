@@ -16,7 +16,10 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="NLog" Version="6.0.1" />
     <PackageReference Include="NLog.Extensions.Logging" Version="6.0.1" />
-    <PackageReference Include="RealTimeLogStream" Version="0.1.0.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LogViewer\LogViewer.csproj" />
   </ItemGroup>
 
 </Project>

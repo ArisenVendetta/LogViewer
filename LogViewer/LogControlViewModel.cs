@@ -35,12 +35,14 @@ namespace LogViewer
         private bool _pauseEnabled = true;
         private readonly List<LogEventArgs> _pauseBuffer = [];
         private readonly object _pauseLock = new();
+        private string _logDisplayFormat = "{timestamp} [{handle}] {message}";
+        private string _logDisplayFormatDelimiter = " ";
 
         /// <summary>
         /// Gets the logger instance for this view model.
         /// </summary>
 #pragma warning disable CS8603, CS8601 // CS8603: Possible null reference return.
-                                       // CS8601: Possible null reference assignment.
+        // CS8601: Possible null reference assignment.
         internal ILogger Logger => _logger ??= CreateLoggerIfNotDesignMode(); // will never be null except for in design mode, where logging is not needed.
 #pragma warning restore CS8603, CS8601
 
@@ -181,6 +183,38 @@ namespace LogViewer
         /// Gets or sets the maximum number of log events to keep in the collection.
         /// </summary>
         public int MaxLogSize { get; set; } = BaseLogger.MaxLogQueueSize;
+
+        /// <summary>
+        /// Gets or sets the format string used to display log entries.
+        /// </summary>
+        /// <remarks>Changing this property triggers an update to the visible logs to reflect the new
+        /// format.</remarks>
+        public string LogDisplayFormat
+        {
+            get => _logDisplayFormat;
+            set
+            {
+                if (_logDisplayFormat == value) return;
+                _logDisplayFormat = string.IsNullOrWhiteSpace(value) ? BaseLogger.DefaultLogDisplayFormat : value;
+                _ = UpdateVisibleLogsAsync();
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the delimiter used to format log entries for display.
+        /// </summary>
+        /// <remarks>Changing this property triggers an asynchronous update of the visible logs to reflect
+        /// the new delimiter.</remarks>
+        public string LogDisplayFormatDelimiter
+        {
+            get => _logDisplayFormatDelimiter;
+            set
+            {
+                if (_logDisplayFormatDelimiter == value) return;
+                _logDisplayFormatDelimiter = string.IsNullOrEmpty(value) ? " " : value;
+                _ = UpdateVisibleLogsAsync();
+            }
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="LogControlViewModel"/> class.
