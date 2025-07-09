@@ -20,6 +20,7 @@ LogViewer provides structured, color-coded, and filterable logging with MVVM-fri
 - **Auto-scroll** to the latest log entry or manual scrolling.
 - **Support for large log sizes** with configurable memory limits.
 - **Built-in commands** for exporting, clearing, and pausing logs.
+- **Custom Format Support**: Choose how you want your log display to look using pre-defined placeholders
 
 ---
 
@@ -69,7 +70,8 @@ the full text of the Apache-2.0 License for these libraries can be found in the 
                           MaxLogSize="5000" 
                           IgnoreCase="True" 
                           HandleFilter="Reg(?:ular)?Ex(?:pression)" 
-                          AutoScroll="True" />
+                          AutoScroll="True"
+                          LogDisplayFormat="{}{timestamp}|{threadid}|{handle}|{message}"/>
     ```
 
     The user control provides properties to define:
