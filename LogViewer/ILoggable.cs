@@ -30,12 +30,9 @@ namespace LogViewer
         /// </summary>
         ILogger Logger { get; }
         /// <summary>
-        /// Gets the minimum <see cref="LogLevel"/> for this logger instance.
+        /// Gets or sets the current log level for the logger.
         /// </summary>
-        /// <remarks>
-        /// Not Implemented yet - Intent is to use this property to filter it's own log messages in the viewer. For example, if this base logger is set to <see cref="LogLevel.Warning"/>, we don't want to see the messages but we still want them logged.
-        /// </remarks>
-        LogLevel LogLevel { get; }
+        LogLevel LogLevel { get; set; }
 
         /// <summary>
         /// Occurs when a log event is raised, allowing subscribers to receive log messages in real time.

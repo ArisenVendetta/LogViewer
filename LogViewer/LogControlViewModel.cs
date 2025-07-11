@@ -37,6 +37,20 @@ namespace LogViewer
         private readonly object _pauseLock = new();
         private string _logDisplayFormat = "{timestamp} [{handle}] {message}";
         private string _logDisplayFormatDelimiter = " ";
+        private LogLevel _logLevel = LogLevel.Trace;
+        private bool _exactLogLevelFilter;
+
+        /// <summary>
+        /// Gets the list of available log levels.
+        /// </summary>
+        public static IReadOnlyList<LogLevel> LogLevels => [
+            LogLevel.Critical,
+            LogLevel.Error,
+            LogLevel.Warning,
+            LogLevel.Information,
+            LogLevel.Debug,
+            LogLevel.Trace
+        ];
 
         /// <summary>
         /// Gets the logger instance for this view model.
@@ -125,6 +139,34 @@ namespace LogViewer
                 {
                     IsPaused = false;
                 }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the current log level for the loggers which will be visible.
+        /// </summary>
+        public LogLevel LogLevel
+        {
+            get => _logLevel;
+            set
+            {
+                if (_logLevel == value) return;
+                _logLevel = value;
+                _ = UpdateVisibleLogsAsync();
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether only logs that match the exact log level should be displayed.
+        /// </summary>
+        public bool ExactLogLevelFilter
+        {
+            get => _exactLogLevelFilter;
+            set
+            {
+                if (_exactLogLevelFilter == value) return;
+                _exactLogLevelFilter = value;
+                _ = UpdateVisibleLogsAsync();
             }
         }
 
@@ -264,7 +306,7 @@ namespace LogViewer
         {
             if (e is null) return;
 
-            if (IsLogEventHandleFiltered(e.LogHandle))
+            if (IsLogEventHandleFiltered(e.LogHandle) && IsLogEventLevelFiltered(e.LogLevel))
             {
                 lock (_pauseLock)
                 {
@@ -291,6 +333,31 @@ namespace LogViewer
             if (string.IsNullOrWhiteSpace(logHandle)) return false;
             // Check if the filter string contains the log handle
             return _handleCheck.IsMatch(logHandle);
+        }
+
+        /// <summary>
+        /// Determines whether a log event's severity level matches the current filtering criteria.
+        /// </summary>
+        /// <remarks>
+        /// This method evaluates the specified <paramref name="logLevel"/> against the current filtering settings.
+        /// The filtering behavior depends on the value of the <see cref="ExactLogLevelFilter"/> property:
+        /// <list type="bullet">
+        /// <item>
+        /// <description>If <see cref="ExactLogLevelFilter"/> is <see langword="true"/>, the method returns <see langword="true"/> only if the specified <paramref name="logLevel"/> is equal to the current <see cref="LogLevel"/>.</description>
+        /// </item>
+        /// <item>
+        /// <description>If <see cref="ExactLogLevelFilter"/> is <see langword="false"/>, the method returns <see langword="true"/> if the specified <paramref name="logLevel"/> is greater than or equal to the current <see cref="LogLevel"/>.</description>
+        /// </item>
+        /// </list>
+        /// </remarks>
+        /// <param name="logLevel">The severity level of the log event to evaluate.</param>
+        /// <returns>
+        /// <see langword="true"/> if the log event's severity level matches the filtering criteria; otherwise, <see langword="false"/>.
+        /// </returns>
+        private bool IsLogEventLevelFiltered(LogLevel logLevel)
+        {
+            if (ExactLogLevelFilter) return logLevel == LogLevel;
+            return logLevel >= LogLevel;
         }
 
         /// <summary>
@@ -365,7 +432,7 @@ namespace LogViewer
             {
                 await ClearLogsAsync();
                 var tempCopy = (BaseLogger.DebugLogQueue?.ToArray() ?? [])
-                    .Where(e => IsLogEventHandleFiltered(e.LogHandle))
+                    .Where(e => IsLogEventHandleFiltered(e.LogHandle) && IsLogEventLevelFiltered(e.LogLevel))
                     .OrderBy(x => x.LogDateTime)
                     .ToArray();
 

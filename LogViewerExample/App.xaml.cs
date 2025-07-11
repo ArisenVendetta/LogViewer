@@ -18,7 +18,6 @@ namespace LogViewerExample
     /// </summary>
     public partial class App : Application
     {
-
         public static IServiceProvider ServiceProvider { get; private set; } = null!;
 
         private void Application_Startup(object sender, StartupEventArgs e)
@@ -36,12 +35,11 @@ namespace LogViewerExample
 
             BaseLogger.Initialize(loggerFactory);
 
-            var serviceCollection = new ServiceCollection();
-
-            var baseLoggerProvider = new BaseLoggerProvider(Microsoft.Extensions.Logging.LogLevel.Information);
+            BaseLoggerProvider baseLoggerProvider = new(Microsoft.Extensions.Logging.LogLevel.Information);
             Dictionary<string, Color> colorMap = [];
             baseLoggerProvider.SetCategoryColor(colorMap);
 
+            ServiceCollection serviceCollection = new();
             serviceCollection.AddSingleton(baseLoggerProvider);
 
             ServiceProvider = serviceCollection.BuildServiceProvider();

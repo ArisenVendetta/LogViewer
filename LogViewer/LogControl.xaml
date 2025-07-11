@@ -55,6 +55,7 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="130"/>
                 <ColumnDefinition Width="100"/>
+                <ColumnDefinition Width="200"/>
                 <ColumnDefinition />
                 <ColumnDefinition Width="100"/>
                 <ColumnDefinition Width="100"/>
@@ -91,7 +92,21 @@
                 <CheckBox Grid.Row="0" Content="Auto Scroll" IsChecked="{Binding AutoScroll}" FontFamily="Consolas" FontSize="10" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="2,1,2,0"/>
             </Grid>
 
-            <Grid Grid.Column="2" Visibility="{Binding HandleFilterVisible, Converter={StaticResource BooleanToVisibilityConverterKey}}">
+            <Grid Grid.Column="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition/>
+                    <ColumnDefinition />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition/>
+                </Grid.RowDefinitions>
+
+                <ComboBox ItemsSource="{Binding LogLevels}" SelectedItem="{Binding LogLevel}" Margin="4" VerticalContentAlignment="Center" HorizontalContentAlignment="Left"
+                          FontFamily="Consolas" FontSize="14" IsEnabled="{Binding ExportingLogs, Mode=OneWay, Converter={StaticResource InverseBooleanConverterKey}}"/>
+                <CheckBox Grid.Column="1" Content="Exact LogLevel" IsChecked="{Binding ExactLogLevelFilter}" FontFamily="Consolas" FontSize="10" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="2,1,2,0" />
+            </Grid>
+
+            <Grid Grid.Column="3" Visibility="{Binding HandleFilterVisible, Converter={StaticResource BooleanToVisibilityConverterKey}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="65"/>
                     <ColumnDefinition/>
@@ -101,13 +116,13 @@
                 <TextBox Grid.Column="1" Text="{Binding LogHandleFilter}" FontFamily="Consolas" FontSize="14" Margin="5" TextAlignment="Right" VerticalContentAlignment="Center" />
             </Grid>
 
-            <ComboBox Grid.Column="3" ItemsSource="{Binding SupportedExportFileTypes}" SelectedItem="{Binding SelectedExportFileType}" DisplayMemberPath="Name" Margin="4" VerticalContentAlignment="Center" HorizontalContentAlignment="Right"
+            <ComboBox Grid.Column="4" ItemsSource="{Binding SupportedExportFileTypes}" SelectedItem="{Binding SelectedExportFileType}" DisplayMemberPath="Name" Margin="4" VerticalContentAlignment="Center" HorizontalContentAlignment="Right"
                       IsEnabled="{Binding ExportingLogs, Mode=OneWay, Converter={StaticResource InverseBooleanConverterKey}}"/>
-            <Button Grid.Column="4" Content="Export" Style="{StaticResource RoundedButtonStyle}" FontSize="16" Margin="2" IsEnabled="{Binding ExportingLogs, Mode=OneWay, Converter={StaticResource InverseBooleanConverterKey}}"
+            <Button Grid.Column="5" Content="Export" Style="{StaticResource RoundedButtonStyle}" FontSize="16" Margin="2" IsEnabled="{Binding ExportingLogs, Mode=OneWay, Converter={StaticResource InverseBooleanConverterKey}}"
                     Command="{Binding ExportLogsCommand, IsAsync=True}"/>
-            <Button Grid.Column="5" Content="{Binding PausedText, Mode=OneWay}" Style="{StaticResource RoundedButtonStyle}" FontSize="16" Command="{Binding TogglePauseCommand}"
+            <Button Grid.Column="6" Content="{Binding PausedText, Mode=OneWay}" Style="{StaticResource RoundedButtonStyle}" FontSize="16" Command="{Binding TogglePauseCommand}"
                     Visibility="{Binding PausingEnabled, Converter={StaticResource BooleanToVisibilityConverterKey}}" Margin="2"/>
-            <Button Grid.Column="6" Content="Clear" Style="{StaticResource RoundedButtonStyle}" FontSize="16" Command="{Binding ClearLogsCommand, IsAsync=True}" Margin="2"/>
+            <Button Grid.Column="7" Content="Clear" Style="{StaticResource RoundedButtonStyle}" FontSize="16" Command="{Binding ClearLogsCommand, IsAsync=True}" Margin="2"/>
         </Grid>
     </Grid>
 </UserControl>

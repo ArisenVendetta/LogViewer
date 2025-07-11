@@ -126,12 +126,9 @@ namespace LogViewer
         /// </summary>
         public ILogger Logger { get; }
         /// <summary>
-        /// Gets the minimum <see cref="LogLevel"/> for this logger instance.
+        /// Gets or sets the current log level for the logger.
         /// </summary>
-        /// <remarks>
-        /// Not Implemented yet - Intent is to use this property to filter it's own log messages in the viewer. For example, if this base logger is set to <see cref="LogLevel.Warning"/>, we don't want to see the messages but we still want them logged.
-        /// </remarks>
-        public LogLevel LogLevel { get; } = LogLevel.Information;
+        public LogLevel LogLevel { get; set; } = LogLevel.Information;
 
         /// <summary>
         /// Occurs when a log event is raised, allowing subscribers to receive log messages in real time.
@@ -427,12 +424,12 @@ namespace LogViewer
         }
 
         /// <summary>
-        /// Raises both <see cref="DebugLogEvent"/> (logcontrol) and <see cref="LogEvent" /> (subscribers) events for the specified event arguments.
+        /// Raises both <see cref="BaseLogger.DebugLogEvent"/> (logcontrol) and <see cref="LogEvent" /> (subscribers) events for the specified event arguments.
         /// </summary>
         /// <param name="eventArgs">The event arguments to pass to subscribers.</param>
         protected void OnLogEvent(LogEventArgs eventArgs)
         {
-            _ = OnRaiseLogEventAsync(DebugLogEvent, eventArgs);
+            _ = OnRaiseLogEventAsync(BaseLogger.DebugLogEvent, eventArgs);
             _ = OnRaiseLogEventAsync(LogEvent, eventArgs);
         }
 

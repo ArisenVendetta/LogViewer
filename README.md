@@ -1,7 +1,9 @@
 # LogViewer
 
 A reusable, real-time log viewer control and infrastructure for .NET 8 WPF applications.  
-LogViewer provides structured, color-coded, and filterable logging with MVVM-friendly APIs, event-driven extensibility, and seamless integration with `Microsoft.Extensions.Logging`.
+LogViewer provides structured, color-coded, and filterable logging with MVVM-friendly APIs, and event-driven extensibility.
+
+It is designed to be easily integrated into WPF applications, allowing developers to monitor application logs in real time with minimal setup.
 
 ---
 
@@ -82,7 +84,8 @@ the full text of the Apache-2.0 License for these libraries can be found in the 
 
     Make sure to add the appropriate XML namespace for `logViewer`.
 
-3. **Inherit from `BaseLogger` in your view models or services:**
+3. **Create an instance of `BaseLoggerProvider` in your application startup and register it with your DI container:** or
+   **Add logging to your class by inheriting from `BaseLogger`:**
 
     ```csharp
     public class MyViewModel : BaseLogger
@@ -92,13 +95,59 @@ the full text of the Apache-2.0 License for these libraries can be found in the 
     }
     ```
 
-4. **Log messages using the provided methods:**
 
     ```csharp
-    LogInfo("Application started.");
-    LogError("An error occurred.");
-    LogException(exception);
+    var baseLoggerProvider = new BaseLoggerProvider();
+    loggerFactory.AddProvider(loggerProvider);
+
+    ServiceCollection services = new();
+    services.AddSingleton<BaseLoggerProvider>(baseLoggerProvider);
+
+    ServiceProvider serviceProvider = services.BuildServiceProvider();
     ```
+
+
+    Then, you can use `baseLoggerProvider.CreateLogger(string categoryName, Color? color = null, LogLevel? logLevel = null)` 
+    to create loggers in your classes which are implementing ILogger, and are of type `Logger`.
+
+
+    ```csharp
+    public class MyService
+    {
+        private readonly ILogger<MyService> _logger;
+        public MyService(ILogger<MyService> logger)
+        {
+            _logger = logger;
+        }
+        public void DoWork()
+        {
+            _logger.LogInformation("Doing work...");
+            // Other work...
+        }
+    }
+    ```
+
+    ```csharp
+    IServiceProvider serviceProvider = ...; // Your DI container
+
+    var baseLoggerProvider = serviceProvider.GetRequiredService<BaseLoggerProvider>();
+    var myService = new(baseLoggerProvider.CreateLogger("some-unique-name", Colors.Blue));
+    ```
+    or
+    ```csharp
+    IServiceProvider serviceProvider = ...; // Your DI container
+
+    var baseLoggerProvider = serviceProvider.GetRequiredService<BaseLoggerProvider>();
+    var myService = new(baseLoggerProvider.CreateLogger<MyService>(Colors.Blue));
+    ```
+
+4. **Log messages using the provided methods:**
+
+```csharp
+LogInformation("Application started.");
+LogError("An error occurred.");
+LogException(exception);
+```
 
 5. **Filter, pause, clear, or export logs in the UI using the LogControl’s built-in features.**
 

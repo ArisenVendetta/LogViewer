@@ -8,11 +8,10 @@ namespace LogViewer
     /// Provides a base implementation for a logger provider that supports category-based logging with customizable
     /// colors.
     /// </summary>
-    /// <remarks>This class implements the <see cref="ILoggerProvider"/> interface, allowing for the creation
-    /// of loggers associated with specific category names. It supports setting colors for categories to enable visual
+    /// <remarks>It supports setting colors for categories to enable visual
     /// differentiation in log outputs. The default log level can be specified during instantiation.</remarks>
     /// <param name="defaultLogLevel"></param>
-    public class BaseLoggerProvider(LogLevel defaultLogLevel = LogLevel.Trace) : ILoggerProvider
+    public class BaseLoggerProvider(LogLevel defaultLogLevel = LogLevel.Trace) : IDisposable
     {
         private readonly ConcurrentDictionary<string, Color> _categoryColors = [];
 
@@ -48,6 +47,10 @@ namespace LogViewer
         /// <returns>An <see cref="ILogger"/> instance configured with the specified category name, color, and log level.</returns>
         public ILogger CreateLogger(string categoryName, Color? color = null, LogLevel? logLevel = null)
         {
+            if (string.IsNullOrWhiteSpace(categoryName))
+            {
+                throw new ArgumentException("Category name cannot be null or empty", nameof(categoryName));
+            }
             try
             {
                 categoryName = BaseLogger.SanitizeHandle(categoryName);
