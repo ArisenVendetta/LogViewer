@@ -6,6 +6,7 @@ using System.Diagnostics.Contracts;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Media;
 using Microsoft.Extensions.Logging;
 
 namespace LogViewer
@@ -112,6 +113,13 @@ namespace LogViewer
             LogExportFormat = string.IsNullOrWhiteSpace(logExportFormat) ? DefaultLogExportFormat : logExportFormat;
         }
 
+        internal static string SanitizeHandle(string name)
+        {
+            string sanitizedHandle = name ?? string.Empty;
+            foreach (var c in ExcludeCharsFromHandle.Union([' '])) sanitizedHandle = sanitizedHandle.Replace(c.ToString(), "").Trim();
+            return sanitizedHandle;
+        }
+
         /// <summary>
         /// Gets or sets the <see cref="ILoggerFactory"/> instance used for creating loggers.
         /// </summary>
@@ -157,22 +165,22 @@ namespace LogViewer
         /// </summary>
         /// <remarks>The format string should follow the standard .NET date and time format patterns.  For
         /// example, "yyyy-MM-dd HH:mm:ss" can be used for a typical timestamp format.</remarks>
-        public static string LogDateTimeFormat { get; set; }                           = DefaultLogDateTimeFormat;
+        public static string LogDateTimeFormat { get; set; } = DefaultLogDateTimeFormat;
         /// <summary>
         /// Gets or sets a value indicating whether timestamps should be included in the output.
         /// </summary>
-        public static bool IncludeTimestampInOutput { get; set; }                      = true;
+        public static bool IncludeTimestampInOutput { get; set; } = true;
         /// <summary>
         /// Gets or sets the collection of characters to exclude from handle generation.
         /// </summary>
-        public static IReadOnlyCollection<char> ExcludeCharsFromHandle { get; set; }   = ['.', '-'];
+        public static IReadOnlyCollection<char> ExcludeCharsFromHandle { get; set; } = ['.', '-'];
         /// <summary>
         /// Gets or sets the maximum size of the log queue.
         /// </summary>
         /// <remarks>If the log queue exceeds this size, the oldest log entries will be removed to make
         /// room for new ones. Adjust this value based on the application's logging requirements and available
         /// memory.</remarks>
-        public static int MaxLogQueueSize { get; set; }                                = 10000;
+        public static int MaxLogQueueSize { get; set; } = 10000;
         /// <summary>
         /// Gets the collection of file types supported for export operations.
         /// </summary>
@@ -183,5 +191,37 @@ namespace LogViewer
             new("CSV file", ".csv"),
             new("JSON file", ".json")
         ];
+
+        /// <summary>
+        /// Creates a new logger instance with the specified handle, color, and log level.
+        /// </summary>
+        /// <param name="handle">The unique identifier for the logger. If <see langword="null"/>, a default handle is used.</param>
+        /// <param name="color">The color associated with the logger's output. If <see langword="null"/>, a default color is used.</param>
+        /// <param name="logLevel">The minimum log level for the logger. Defaults to <see cref="LogLevel.Information"/>.</param>
+        /// <returns>An <see cref="ILoggable"/> instance configured with the specified parameters.</returns>
+        /// <exception cref="InvalidOperationException">Thrown if the logger factory is not initialized. Ensure <c>Initialize()</c> is called before creating a
+        /// logger.</exception>
+        public static ILogger CreateLogger(string? handle = null, Color? color = null, LogLevel logLevel = LogLevel.Information)
+        {
+            if (LoggerFactory is null)
+                throw new InvalidOperationException("LoggerFactory is not initialized. Call Initialize() before creating a logger.");
+            return new Logger(handle, color, logLevel);
+        }
+
+        /// <summary>
+        /// Creates a logger instance for the specified type with optional color and log level settings.
+        /// </summary>
+        /// <typeparam name="T">The type for which the logger is being created. The logger will use the name of this type.</typeparam>
+        /// <param name="color">An optional color to associate with the logger output. If not specified, the default color is used.</param>
+        /// <param name="logLevel">The minimum log level for the logger. Defaults to <see cref="LogLevel.Information"/>.</param>
+        /// <returns>An <see cref="ILoggable"/> instance configured for the specified type.</returns>
+        /// <exception cref="InvalidOperationException">Thrown if the logger factory is not initialized. Ensure <c>Initialize()</c> is called before creating a
+        /// logger.</exception>
+        public static ILogger CreateLogger<T>(Color? color = null, LogLevel logLevel = LogLevel.Information)
+        {
+            if (LoggerFactory is null)
+                throw new InvalidOperationException("LoggerFactory is not initialized. Call Initialize() before creating a logger.");
+            return new Logger(typeof(T).Name, color, logLevel);
+        }
     }
 }

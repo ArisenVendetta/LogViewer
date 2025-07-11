@@ -68,20 +68,20 @@ namespace LogViewer
         /// Logs a message at the <see cref="LogLevel.Information"/> level.
         /// </summary>
         /// <param name="message">The message to log.</param>
-        void LogInfo(string message);
+        void LogInformation(string message);
         /// <summary>
         /// Logs each item in an enumerable collection at the <see cref="LogLevel.Information"/> level.
         /// </summary>
         /// <typeparam name="T">The type of items in the collection.</typeparam>
         /// <param name="iterable">The collection to log.</param>
-        void LogInfo<T>(IEnumerable<T> iterable);
+        void LogInformation<T>(IEnumerable<T> iterable);
         /// <summary>
         /// Logs each key-value pair in a dictionary at the <see cref="LogLevel.Information"/> level.
         /// </summary>
         /// <typeparam name="TKey">The type of the dictionary keys.</typeparam>
         /// <typeparam name="TValue">The type of the dictionary values.</typeparam>
         /// <param name="dict">The dictionary to log.</param>
-        void LogInfo<TKey, TValue>(IDictionary<TKey, TValue> dict);
+        void LogInformation<TKey, TValue>(IDictionary<TKey, TValue> dict);
 
         /// <summary>
         /// Logs a message at the <see cref="LogLevel.Debug"/> level.

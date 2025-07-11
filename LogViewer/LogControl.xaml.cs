@@ -471,7 +471,6 @@ namespace LogViewer
             }
         }
 
-
         private static FrameworkElementFactory GenerateDelimiter(string delimiter)
         {
             var delimiterRun = new FrameworkElementFactory(typeof(Run));

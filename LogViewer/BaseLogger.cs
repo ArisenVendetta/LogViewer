@@ -12,7 +12,7 @@ namespace LogViewer
     /// Provides a base class for logging functionality, routing all log messages to a central real-time log viewer.
     /// Implements <see cref="ILoggable"/> and supports structured, color-coded, and event-driven logging.
     /// </summary>
-    public abstract partial class BaseLogger : ILoggable
+    public abstract partial class BaseLogger : ILoggable, ILogger
     {
         /// <summary>
         /// Predefined logging actions for trace-level messages.
@@ -25,7 +25,7 @@ namespace LogViewer
         /// <summary>
         /// Predefined logging actions for information-level messages.
         /// </summary>
-        internal static readonly Action<ILogger, string, Exception?> LogInfoMessage = LoggerMessage.Define<string>(LogLevel.Information, new EventId(2, nameof(LogInfo)), "{Message}");
+        internal static readonly Action<ILogger, string, Exception?> LogInfoMessage = LoggerMessage.Define<string>(LogLevel.Information, new EventId(2, nameof(LogInformation)), "{Message}");
         /// <summary>
         /// Predefined logging actions for warning-level messages.
         /// </summary>
@@ -50,7 +50,7 @@ namespace LogViewer
         /// <summary>
         /// Predefined logging actions for information-level exceptions.
         /// </summary>
-        internal static readonly Action<ILogger, string, Exception?> LogInfoException = LoggerMessage.Define<string>(LogLevel.Information, new EventId(102, nameof(LogInfo)), "{Message}");
+        internal static readonly Action<ILogger, string, Exception?> LogInfoException = LoggerMessage.Define<string>(LogLevel.Information, new EventId(102, nameof(LogInformation)), "{Message}");
         /// <summary>
         /// Predefined logging actions for warning-level exceptions.
         /// </summary>
@@ -105,9 +105,7 @@ namespace LogViewer
 
             // sanitize the handle by removing unwanted characters and trimming whitespace
             // consumers of the code should be setting any characters they want to exclude in the static property BaseLogger.ExcludeCharsFromHandle
-            string sanitizedHandle = handle ?? GetType().Name;
-            foreach (var c in ExcludeCharsFromHandle.Union([' '])) sanitizedHandle = sanitizedHandle.Replace(c.ToString(), "").Trim();
-            LogHandle = sanitizedHandle;
+            LogHandle = SanitizeHandle(handle ?? GetType().Name);
             LogColor = color ?? Colors.Black;
             LogLevel = logLevel;
 
@@ -278,20 +276,20 @@ namespace LogViewer
         /// Logs a message at the <see cref="LogLevel.Information"/> level.
         /// </summary>
         /// <param name="message">The message to log.</param>
-        public void LogInfo(string message) => Log(LogLevel.Information, message);
+        public void LogInformation(string message) => Log(LogLevel.Information, message);
         /// <summary>
         /// Logs each item in an enumerable collection at the <see cref="LogLevel.Information"/> level.
         /// </summary>
         /// <typeparam name="T">The type of items in the collection.</typeparam>
         /// <param name="iterable">The collection to log.</param>
-        public void LogInfo<T>(IEnumerable<T> iterable) => Log(LogLevel.Information, iterable);
+        public void LogInformation<T>(IEnumerable<T> iterable) => Log(LogLevel.Information, iterable);
         /// <summary>
         /// Logs each key-value pair in a dictionary at the <see cref="LogLevel.Information"/> level.
         /// </summary>
         /// <typeparam name="TKey">The type of the dictionary keys.</typeparam>
         /// <typeparam name="TValue">The type of the dictionary values.</typeparam>
         /// <param name="dict">The dictionary to log.</param>
-        public void LogInfo<TKey, TValue>(IDictionary<TKey, TValue> dict) => Log(LogLevel.Information, dict);
+        public void LogInformation<TKey, TValue>(IDictionary<TKey, TValue> dict) => Log(LogLevel.Information, dict);
 
         /// <summary>
         /// Logs a message at the <see cref="LogLevel.Trace"/> level.
@@ -436,6 +434,57 @@ namespace LogViewer
         {
             _ = OnRaiseLogEventAsync(DebugLogEvent, eventArgs);
             _ = OnRaiseLogEventAsync(LogEvent, eventArgs);
+        }
+
+        /// <summary>
+        /// Logs a formatted message with the specified log level, event ID, and state.
+        /// </summary>
+        /// <remarks>The method checks if logging is enabled for the specified <paramref name="logLevel"/>
+        /// before proceeding. If logging is enabled, it formats the message using the provided <paramref
+        /// name="formatter"/> and logs it.</remarks>
+        /// <typeparam name="TState">The type of the state object to be logged.</typeparam>
+        /// <param name="logLevel">The severity level of the log message.</param>
+        /// <param name="eventId">The identifier for the event associated with the log message.</param>
+        /// <param name="state">The state object containing information to be logged.</param>
+        /// <param name="exception">The exception related to the log entry, if any. Can be <see langword="null"/>.</param>
+        /// <param name="formatter">A function that formats the state and exception into a log message string.</param>
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (!IsEnabled(logLevel)) return;
+
+            string message = formatter(state, null);
+            if (exception is null)
+                Log(logLevel, message);
+            else
+                LogException(exception, message, logLevel);
+        }
+
+        /// <summary>
+        /// Determines whether logging is enabled for the specified log level.
+        /// </summary>
+        /// <param name="logLevel">The log level to check against the current logging configuration.</param>
+        /// <returns><see langword="true"/> if logging is enabled for the specified <paramref name="logLevel"/>; otherwise, <see
+        /// langword="false"/>.</returns>
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel;
+
+        /// <summary>
+        /// Begins a logical operation scope.
+        /// </summary>
+        /// <typeparam name="TState">The type of the state to associate with the scope. Must be a non-nullable type.</typeparam>
+        /// <param name="state">The state to associate with the scope. This value cannot be null.</param>
+        /// <returns>An <see cref="IDisposable"/> that ends the logical operation scope on disposal. Returns a no-op disposable
+        /// if the scope is not applicable.</returns>
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+        {
+            return new NoOpDisposable();
+        }
+
+        private sealed class NoOpDisposable : IDisposable
+        {
+            public void Dispose()
+            {
+                // No operation
+            }
         }
     }
 }

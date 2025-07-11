@@ -14,13 +14,15 @@ namespace LogViewerExample
             {
                 LogLevel.Trace       => LogTrace,
                 LogLevel.Debug       => LogDebug,
-                LogLevel.Information => LogInfo,
+                LogLevel.Information => LogInformation,
                 LogLevel.Warning     => LogWarning,
                 LogLevel.Error       => LogError,
                 LogLevel.Critical    => LogCritical,
                 LogLevel.None        => LogTrace,
-                _                    => LogInfo
+                _                    => LogInformation
             };
+
+            ILogger logger = BaseLogger.CreateLogger(name, logColour, desiredLogLevel);
         }
 
         public async Task SomeAction(Random random, CancellationTokenSource cts)
@@ -53,7 +55,7 @@ namespace LogViewerExample
             }
             finally
             {
-                LogInfo($"Exiting {nameof(SomeAction)}");
+                LogInformation($"Exiting {nameof(SomeAction)}");
             }
         }
     }

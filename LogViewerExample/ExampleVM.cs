@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Media;
 using LogViewer;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using PropertyChanged;
 
@@ -25,20 +26,28 @@ namespace LogViewerExample
         private bool _disposedValue;
         private List<Task>? _logGenerators;
 
+        private IServiceProvider _serviceProvider;
+        private ILogger _logger;
+
         /// <summary>
         /// Initializes a new instance of the <see cref="ExampleVM"/> class and sets up the available commands.
         /// </summary>
         /// <remarks>This constructor initializes the <see cref="Commands"/> collection with a predefined
         /// set of commands that can be executed by the view model. Each command represents a specific action, such as
         /// generating log messages or handling exceptions.</remarks>
-        public ExampleVM()
+        public ExampleVM(IServiceProvider serviceProvider)
         {
+            ArgumentNullException.ThrowIfNull(serviceProvider, nameof(serviceProvider));
+            _serviceProvider = serviceProvider;
+            _logger = _serviceProvider.GetRequiredService<BaseLoggerProvider>().CreateLogger("SomeRandomLogger");
+
             Commands = [
                 new CustomCommand("Generate message for each log level", GenerateEachLogLevelAsync),
                 new CustomCommand("Generate random logs continuously", GenerateContinuousLogMessagesAsync),
                 new CustomCommand("Stop continuous log generation", StopContinuousLogMessagesAsync),
                 new CustomCommand("Generate exception", new Command(GenerateException))
             ];
+            _logger.LogInformation($"Initialized {nameof(ExampleVM)} with {Commands.Count} commands.");
         }
 
         /// <summary>
@@ -62,11 +71,12 @@ namespace LogViewerExample
             List<Action<string>> logFunctions = [
                 LogCritical,
                 LogWarning,
-                LogInfo,
+                LogInformation,
                 LogDebug,
                 LogTrace,
                 LogError
             ];
+            _logger.LogInformation($"Starting {nameof(GenerateEachLogLevelAsync)} with {logFunctions.Count} log functions.");
             foreach (var logFunction in logFunctions)
             {
                 logFunction($"This is an auto-generated log message [{logFunction.Method.Name}, invoked by {nameof(GenerateEachLogLevelAsync)}]");
@@ -106,7 +116,7 @@ namespace LogViewerExample
                         LogLevel.Error,
                         LogLevel.Critical
                     };
-
+                    _logger.LogInformation($"Starting {nameof(GenerateContinuousLogMessagesAsync)} with {logLevels.Length} log levels.");
                     for (int i = 0; i < 300; i++)
                     {
                         Color randomColor = Color.FromArgb(255, (byte)random.Next(256), (byte)random.Next(256), (byte)random.Next(256));
@@ -131,7 +141,7 @@ namespace LogViewerExample
         {
             if (CancellationToken is null) return;
             if (_logGenerators is null || _logGenerators.Count == 0) return;
-
+            _logger.LogInformation($"Stopping continuous log messages, cancelling and waiting for {_logGenerators.Count} log generators to complete.");
             CancellationToken?.Cancel();
             await Task.WhenAll(_logGenerators);
         }

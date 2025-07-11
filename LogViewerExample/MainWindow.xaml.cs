@@ -10,6 +10,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.IO;
 using LogViewer;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LogViewerExample
 {
@@ -30,10 +31,10 @@ namespace LogViewerExample
             _title += $" - {BaseLogger.Version}";
             Title = _title;
 
-            _example = new ExampleVM();
+            _example = new ExampleVM(App.ServiceProvider);
             _exampleControls.DataContext = _example;
 
-            _loggableObject.LogInfo("Logging initialized");
+            _loggableObject.LogInformation("Logging initialized");
         }
 
         private async void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
@@ -47,5 +48,8 @@ namespace LogViewerExample
                 // swallow it, this is an example application and it's closing
             }
         }
+
+        public T Resolve<T>() where T : notnull
+            => App.ServiceProvider.GetRequiredService<T>();
     }
 }

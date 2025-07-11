@@ -8,6 +8,8 @@ using Microsoft.Extensions.Logging;
 using NLog;
 using NLog.Extensions.Logging;
 using NLog.Config;
+using Microsoft.Extensions.DependencyInjection;
+using System.Windows.Media;
 
 namespace LogViewerExample
 {
@@ -16,7 +18,8 @@ namespace LogViewerExample
     /// </summary>
     public partial class App : Application
     {
-        private ILoggerFactory? _loggerFactory = null;
+
+        public static IServiceProvider ServiceProvider { get; private set; } = null!;
 
         private void Application_Startup(object sender, StartupEventArgs e)
         {
@@ -24,21 +27,31 @@ namespace LogViewerExample
             LogManager.ThrowConfigExceptions = true;
             LogManager.Configuration = new XmlLoggingConfiguration(nlogConfigPath);
 
-            _loggerFactory = LoggerFactory.Create(builder =>
+            var loggerFactory = LoggerFactory.Create(builder =>
             {
                 builder.ClearProviders();
                 builder.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Trace);
                 builder.AddNLog();
             });
 
-            BaseLogger.Initialize(_loggerFactory, logDateTimeFormat: "o");
+            BaseLogger.Initialize(loggerFactory);
+
+            var serviceCollection = new ServiceCollection();
+
+            var baseLoggerProvider = new BaseLoggerProvider(Microsoft.Extensions.Logging.LogLevel.Information);
+            Dictionary<string, Color> colorMap = [];
+            baseLoggerProvider.SetCategoryColor(colorMap);
+
+            serviceCollection.AddSingleton(baseLoggerProvider);
+
+            ServiceProvider = serviceCollection.BuildServiceProvider();
         }
 
         private void Application_Exit(object sender, ExitEventArgs e)
         {
             try
             {
-                _loggerFactory?.Dispose();
+                ServiceProvider?.GetRequiredService<ILoggerProvider>()?.Dispose();
                 LogManager.Shutdown();
             }
             catch (Exception)
