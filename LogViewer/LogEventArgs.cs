@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Media;
@@ -56,10 +57,16 @@ namespace LogViewer
         /// </summary>
         public int ThreadId { get; } = Environment.CurrentManagedThreadId;
 
+        private Lazy<Guid> _lazyId = new(() => Guid.NewGuid());
         /// <summary>
         /// Gets the unique identifier for this log event instance.
         /// </summary>
-        [JsonIgnore] public Guid ID { get; } = Guid.NewGuid();
+        /// <remarks>
+        /// This property is obsolete. Use reference equality instead for comparing LogEventArgs instances.
+        /// The property is retained for backwards compatibility but may be removed in a future version.
+        /// </remarks>
+        [Obsolete("Use reference equality instead. This property may be removed in a future version.")]
+        [JsonIgnore] public Guid ID => _lazyId.Value;
 
         /// <summary>
         /// Returns the main parts of the log message as a tuple: timestamp, handle, and message body.
@@ -112,31 +119,23 @@ namespace LogViewer
         }
 
         /// <summary>
-        /// Determines whether the specified <see cref="LogEventArgs"/> is equal to the current instance, based on the unique ID.
+        /// Determines whether the specified <see cref="LogEventArgs"/> is equal to the current instance using reference equality.
         /// </summary>
         /// <param name="other">The other <see cref="LogEventArgs"/> to compare.</param>
-        /// <returns>True if the IDs are equal; otherwise, false.</returns>
-        public bool Equals(LogEventArgs? other)
-        {
-            if (other is null) return false;
-            return ID == other.ID;
-        }
+        /// <returns>True if the references are equal; otherwise, false.</returns>
+        public bool Equals(LogEventArgs? other) => ReferenceEquals(this, other);
 
         /// <summary>
-        /// Determines whether the specified object is equal to the current instance, based on the unique ID.
+        /// Determines whether the specified object is equal to the current instance using reference equality.
         /// </summary>
         /// <param name="obj">The object to compare.</param>
-        /// <returns>True if the object is a <see cref="LogEventArgs"/> with the same ID; otherwise, false.</returns>
-        public override bool Equals(object? obj)
-        {
-            if (obj is null) return false;
-            return Equals(obj as LogEventArgs);
-        }
+        /// <returns>True if the object is the same reference as this instance; otherwise, false.</returns>
+        public override bool Equals(object? obj) => ReferenceEquals(this, obj);
 
         /// <summary>
-        /// Returns a hash code for this instance, based on the unique ID.
+        /// Returns a hash code for this instance using the runtime identity hash code.
         /// </summary>
         /// <returns>A hash code for the current object.</returns>
-        public override int GetHashCode() => ID.GetHashCode();
+        public override int GetHashCode() => RuntimeHelpers.GetHashCode(this);
     }
 }

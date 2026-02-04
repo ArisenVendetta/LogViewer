@@ -244,7 +244,15 @@ namespace LogViewer
         /// <summary>
         /// Returns the index of the specified log event in the collection.
         /// </summary>
-        public int IndexOf(LogEventArgs item) => _logs.IndexOf(item);
+        public int IndexOf(LogEventArgs item)
+        {
+            int index = -1;
+            lock (_lockObject)
+            {
+                index = _logs.IndexOf(item);
+            }
+            return index;
+        }
 
         /// <summary>
         /// Inserts a log event at the specified index if it does not already exist.
@@ -275,13 +283,13 @@ namespace LogViewer
         /// <exception cref="InvalidOperationException">Thrown if the item is not found in the collection.</exception>
         public void RemoveAt(int index)
         {
-            if (index < 0 || index >= _logs.Count)
-                throw new ArgumentOutOfRangeException(nameof(index), "Index is out of range.");
-
             bool removed = false;
             LogEventArgs? item = null;
             lock (_lockObject)
             {
+                if (index < 0 || index >= _logs.Count)
+                    throw new ArgumentOutOfRangeException(nameof(index), "Index is out of range.");
+
                 item = _logs[index];
                 removed = _logSet.Remove(item);
                 if (removed)
@@ -299,7 +307,15 @@ namespace LogViewer
         /// <summary>
         /// Determines whether the collection contains the specified log event.
         /// </summary>
-        public bool Contains(LogEventArgs item) => _logSet.Contains(item);
+        public bool Contains(LogEventArgs item)
+        {
+            bool contains = false;
+            lock (_lockObject)
+            {
+                contains = _logSet.Contains(item);
+            }
+            return contains;
+        }
 
         /// <summary>
         /// Copies the elements of the collection to an array, starting at the specified array index.

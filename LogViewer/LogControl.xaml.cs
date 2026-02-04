@@ -1,19 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.DirectoryServices.ActiveDirectory;
-using System.Linq;
-using System.Reflection.Metadata;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Documents;
-using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
 
@@ -64,24 +53,13 @@ namespace LogViewer
 
             __logList.ItemTemplate = GenerateDataTemplate(LogDisplayFormat, LogDisplayFormatDelimiter);
 
-            _viewModel.LogEvents.CollectionChanged += (s, e) =>
-            {
-                if (_viewModel.IsPaused) return;
-
-                // Auto-scroll to the end when new log events are added, unless paused.
-                if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add)
-                {
-                    // Lazily find the ScrollViewer for the log list if not already found.
-                    _scrollViewer ??= GetScrollViewer(__logList);
-
-                    if (_scrollViewer is not null && _viewModel.AutoScroll)
-                    {
-                        // Scroll to the end on the UI thread at background priority.
-                        Dispatcher.InvokeAsync(() => _scrollViewer.ScrollToEnd(), DispatcherPriority.Background);
-                    }
-                }
-            };
+            _viewModel.LogEvents.CollectionChanged += HandleCollectionChanged;
         }
+
+        /// <summary>
+        /// Gets the view model for controlling log operations.
+        /// </summary>
+        public LogControlViewModel LogControlViewModel => _viewModel;
 
         /// <summary>
         /// Gets or sets the maximum size, in bytes, of the log queue.
@@ -373,6 +351,32 @@ namespace LogViewer
         }
 
         /// <summary>
+        /// Handles changes to the log collection and automatically scrolls to the end when new log entries are added.
+        /// </summary>
+        /// <remarks>This method checks if the view model is paused and, if not, it will auto-scroll to
+        /// the end of the log list when new items are added, provided that auto-scrolling is enabled. The scrolling
+        /// operation is performed on the UI thread with background priority.</remarks>
+        /// <param name="sender">The source of the event, typically the collection that has changed.</param>
+        /// <param name="e">The event data containing information about the change.</param>
+        private void HandleCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            if (_viewModel.IsPaused) return;
+
+            // Auto-scroll to the end when new log events are added, unless paused.
+            if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add)
+            {
+                // Lazily find the ScrollViewer for the log list if not already found.
+                _scrollViewer ??= GetScrollViewer(__logList);
+
+                if (_scrollViewer is not null && _viewModel.AutoScroll)
+                {
+                    // Scroll to the end on the UI thread at background priority.
+                    Dispatcher.InvokeAsync(() => _scrollViewer.ScrollToEnd(), DispatcherPriority.Background);
+                }
+            }
+        }
+
+        /// <summary>
         /// Generates a <see cref="DataTemplate"/> for displaying log entries based on the specified format and
         /// delimiter.
         /// </summary>
@@ -475,10 +479,6 @@ namespace LogViewer
         {
             var delimiterRun = new FrameworkElementFactory(typeof(Run));
             delimiterRun.SetValue(Run.TextProperty, delimiter);
-            delimiterRun.SetBinding(Run.TagProperty, new Binding(nameof(LogEventArgs.ID))
-            {
-                Mode = BindingMode.OneWay
-            });
             return delimiterRun;
         }
 
@@ -548,8 +548,7 @@ namespace LogViewer
         /// element.
         /// </summary>
         /// <remarks>If the text contains a placeholder that can be bound, the method creates a binding to
-        /// the placeholder's component. Otherwise, the text is trimmed and set as a static value. Additionally, the
-        /// <see cref="Run.TagProperty"/> is bound to the <see cref="LogEventArgs.ID"/> property.</remarks>
+        /// the placeholder's component. Otherwise, the text is trimmed and set as a static value.</remarks>
         /// <param name="text">The text to be converted. This can include placeholders for binding.</param>
         /// <returns>A <see cref="FrameworkElementFactory"/> configured to represent a <see cref="Run"/> element with the
         /// specified text. Returns <see langword="null"/> if <paramref name="text"/> is <see langword="null"/>.</returns>
@@ -570,10 +569,6 @@ namespace LogViewer
                 output.SetValue(Run.TextProperty, content.Component.Trim());
             }
 
-            output.SetBinding(Run.TagProperty, new Binding(nameof(LogEventArgs.ID))
-            {
-                Mode = BindingMode.OneWay
-            });
             return output;
         }
 
@@ -858,6 +853,7 @@ namespace LogViewer
             {
                 if (disposing)
                 {
+                    _viewModel.LogEvents.CollectionChanged -= HandleCollectionChanged;
                     _viewModel?.Dispose();
                 }
 

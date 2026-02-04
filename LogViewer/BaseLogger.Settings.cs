@@ -71,16 +71,17 @@ namespace LogViewer
         /// <returns></returns>
         internal static async Task LogQueueHandlerAsync(object sender, LogEventArgs e)
         {
-            await Task.Run(() =>
+            if (e is null) return;
+            if (DebugLogQueue is null) return;
+            DebugLogQueue.Enqueue(e);
+            int overflow = DebugLogQueue.Count - MaxLogQueueSize;
+            if (overflow > 0)
             {
-                if (e is null) return;
-                if (DebugLogQueue is null) return;
-                DebugLogQueue.Enqueue(e);
-                while (DebugLogQueue.Count > MaxLogQueueSize)
-                {
-                    _ = DebugLogQueue.TryDequeue(out _);
-                }
-            });
+                // Remove overflow plus 10% buffer to reduce frequency of trimming
+                int toRemove = overflow + (MaxLogQueueSize / 10);
+                for (int i = 0; i < toRemove && DebugLogQueue.TryDequeue(out _); i++) { }
+            }
+            await Task.CompletedTask;
         }
 
         /// <summary>
@@ -113,11 +114,26 @@ namespace LogViewer
             LogExportFormat = string.IsNullOrWhiteSpace(logExportFormat) ? DefaultLogExportFormat : logExportFormat;
         }
 
+        /// <summary>
+        /// Shuts down the logging system and releases associated resources.
+        /// </summary>
+        /// <remarks>After calling this method, the logging system is no longer initialized and cannot be
+        /// used until reinitialized. Any pending log events will be discarded.</remarks>
+        public static void Shutdown()
+        {
+            if (!Initialized) return;
+            DebugLogEvent -= LogQueueHandlerAsync;
+            DebugLogQueue = null;
+            LoggerFactory = null;
+            Initialized = false;
+        }
+
         internal static string SanitizeHandle(string name)
         {
             string sanitizedHandle = name ?? string.Empty;
-            foreach (var c in ExcludeCharsFromHandle.Union([' '])) sanitizedHandle = sanitizedHandle.Replace(c.ToString(), "").Trim();
-            return sanitizedHandle;
+            var excludeSet = ExcludeCharsFromHandle?.ToHashSet() ?? [];
+            excludeSet.Add(' ');
+            return new string(sanitizedHandle.Where(c => !excludeSet.Contains(c)).ToArray()).Trim();
         }
 
         /// <summary>

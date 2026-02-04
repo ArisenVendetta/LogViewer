@@ -119,10 +119,10 @@
             <ComboBox Grid.Column="4" ItemsSource="{Binding SupportedExportFileTypes}" SelectedItem="{Binding SelectedExportFileType}" DisplayMemberPath="Name" Margin="4" VerticalContentAlignment="Center" HorizontalContentAlignment="Right"
                       IsEnabled="{Binding ExportingLogs, Mode=OneWay, Converter={StaticResource InverseBooleanConverterKey}}"/>
             <Button Grid.Column="5" Content="Export" Style="{StaticResource RoundedButtonStyle}" FontSize="16" Margin="2" IsEnabled="{Binding ExportingLogs, Mode=OneWay, Converter={StaticResource InverseBooleanConverterKey}}"
-                    Command="{Binding ExportLogsCommand, IsAsync=True}"/>
+                    Command="{Binding ExportLogsCommand}"/>
             <Button Grid.Column="6" Content="{Binding PausedText, Mode=OneWay}" Style="{StaticResource RoundedButtonStyle}" FontSize="16" Command="{Binding TogglePauseCommand}"
                     Visibility="{Binding PausingEnabled, Converter={StaticResource BooleanToVisibilityConverterKey}}" Margin="2"/>
-            <Button Grid.Column="7" Content="Clear" Style="{StaticResource RoundedButtonStyle}" FontSize="16" Command="{Binding ClearLogsCommand, IsAsync=True}" Margin="2"/>
+            <Button Grid.Column="7" Content="Clear" Style="{StaticResource RoundedButtonStyle}" FontSize="16" Command="{Binding ClearLogsCommand}" Margin="2"/>
         </Grid>
     </Grid>
 </UserControl>

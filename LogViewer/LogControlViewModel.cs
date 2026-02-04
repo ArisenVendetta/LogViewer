@@ -28,7 +28,7 @@ namespace LogViewer
         private readonly Dispatcher _dispatcher;
         private string _logHandleFilter = ".*";
         private bool _logHandleIgnoreCase;
-        private Regex _handleCheck = new(".*");
+        private Regex _handleCheck = new(".*", RegexOptions.NonBacktracking, TimeSpan.FromMilliseconds(100));
         private bool disposedValue;
         private ILogger _logger;
         private bool _isPaused;
@@ -201,8 +201,10 @@ namespace LogViewer
             {
                 if (_logHandleIgnoreCase == value) return;
 
+                var options = RegexOptions.NonBacktracking;
                 _logHandleIgnoreCase = value;
-                _handleCheck = new Regex(_logHandleFilter, _logHandleIgnoreCase ? RegexOptions.IgnoreCase : RegexOptions.None);
+                if (_logHandleIgnoreCase) options |= RegexOptions.IgnoreCase;
+                _handleCheck = new Regex(_logHandleFilter, options, TimeSpan.FromMilliseconds(100));
                 _ = UpdateVisibleLogsAsync();
             }
         }
@@ -395,8 +397,11 @@ namespace LogViewer
 
             try
             {
+                var options = RegexOptions.NonBacktracking;
+                if (LogHandleIgnoreCase) options |= RegexOptions.IgnoreCase;
+
                 // Validate the regex pattern by creating a new Regex instance.
-                _handleCheck = new Regex(filter, LogHandleIgnoreCase ? RegexOptions.IgnoreCase : RegexOptions.None);
+                _handleCheck = new Regex(filter, options, TimeSpan.FromMilliseconds(100));
                 _logHandleFilter = filter;
                 _ = UpdateVisibleLogsAsync();
                 return true;
@@ -431,18 +436,27 @@ namespace LogViewer
             try
             {
                 await ClearLogsAsync();
-                var tempCopy = (BaseLogger.DebugLogQueue?.ToArray() ?? [])
-                    .Where(e => IsLogEventHandleFiltered(e.LogHandle) && IsLogEventLevelFiltered(e.LogLevel))
-                    .OrderBy(x => x.LogDateTime)
-                    .ToArray();
 
-                // Trim to the most recent MaxLogSize entries if needed.
-                tempCopy = tempCopy.Length > MaxLogSize ? tempCopy.Skip(tempCopy.Length - MaxLogSize).ToArray() : tempCopy;
+                // Single-pass algorithm: enumerate queue once, filter into pre-sized list
+                var queue = BaseLogger.DebugLogQueue;
+                if (queue is null) return;
 
-                foreach (var logEvent in tempCopy)
+                var filteredLogs = new List<LogEventArgs>(Math.Min(queue.Count, MaxLogSize));
+                foreach (var e in queue)
                 {
-                    await DispatchIfNecessaryAsync(() => LogEvents.Add(logEvent));
+                    if (IsLogEventHandleFiltered(e.LogHandle) && IsLogEventLevelFiltered(e.LogLevel))
+                    {
+                        filteredLogs.Add(e);
+                    }
                 }
+
+                // Sort in-place
+                filteredLogs.Sort((a, b) => a.LogDateTime.CompareTo(b.LogDateTime));
+
+                // Trim to the most recent MaxLogSize entries if needed using index-based iteration
+                int startIndex = filteredLogs.Count > MaxLogSize ? filteredLogs.Count - MaxLogSize : 0;
+                var logsToAdd = filteredLogs.Skip(startIndex).ToList();
+                await DispatchIfNecessaryAsync(() => LogEvents.AddRange(logsToAdd));
             }
             catch (Exception ex)
             {
@@ -457,16 +471,25 @@ namespace LogViewer
         {
             if (_pauseBuffer.Count == 0) return;
 
-            LogEventArgs last;
+            LogEventArgs[] bufferCopy;
             lock (_pauseLock)
             {
-                // Add all buffered events to the collection.
-                var temp = _pauseBuffer.Take(_pauseBuffer.Count - 1).ToList();
-                last = _pauseBuffer[^1];
-                DispatchIfNecessary(() => LogEvents.AddRange(new List<LogEventArgs>(_pauseBuffer)));
+                bufferCopy = [.. _pauseBuffer];
                 _pauseBuffer.Clear();
             }
-            AddAndTrimLogEventsIfNeededAsync(last).GetAwaiter().GetResult();
+            DispatchIfNecessary(() =>
+            {
+                LogEvents.AddRange(bufferCopy);
+
+                int overFlow = LogEvents.Count - MaxLogSize;
+                if (overFlow > 0)
+                {
+                    // Remove a little more than the overflow to reduce frequent trimming.
+                    int amountToRemove = overFlow + ((int)(MaxLogSize * 0.1));
+                    LogEvents.RemoveRange(0, amountToRemove); // Remove oldest
+                }
+                return true;
+            });
         }
 
         /// <summary>
@@ -616,7 +639,7 @@ namespace LogViewer
                     return output;
                 }
 
-                var exportLogs = new List<LogEventArgs>(LogEvents);
+                var exportLogs = new List<LogEventArgs>(LogEvents.ToList());
                 output.FileType = SelectedExportFileType;
                 output.FilePath = filePath;
                 StringBuilder contents = (SelectedExportFileType?.Extension ?? ".json") switch

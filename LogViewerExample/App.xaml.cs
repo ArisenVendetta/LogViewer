@@ -50,6 +50,7 @@ namespace LogViewerExample
             try
             {
                 ServiceProvider?.GetRequiredService<ILoggerProvider>()?.Dispose();
+                BaseLogger.Shutdown();
                 LogManager.Shutdown();
             }
             catch (Exception)

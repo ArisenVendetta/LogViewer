@@ -11,7 +11,7 @@ namespace LogViewer
     /// <remarks>It supports setting colors for categories to enable visual
     /// differentiation in log outputs. The default log level can be specified during instantiation.</remarks>
     /// <param name="defaultLogLevel"></param>
-    public class BaseLoggerProvider(LogLevel defaultLogLevel = LogLevel.Trace) : IDisposable
+    public class BaseLoggerProvider(LogLevel defaultLogLevel = LogLevel.Trace)
     {
         private readonly ConcurrentDictionary<string, Color> _categoryColors = [];
 
@@ -142,17 +142,6 @@ namespace LogViewer
             {
                 throw new InvalidOperationException("Failed to set category colors from the provided dictionary", ex);
             }
-        }
-
-        /// <summary>
-        /// Releases all resources used by the current instance of the class.
-        /// </summary>
-        /// <remarks>This method is provided to comply with the <see cref="IDisposable"/> interface. It
-        /// does not perform any resource cleanup as there are no resources to dispose.</remarks>
-        public void Dispose()
-        {
-            // nothing to dispose of
-            GC.SuppressFinalize(this);
         }
     }
 }

@@ -152,7 +152,7 @@ namespace LogViewer
 
             var args = new LogEventArgs(level, LogHandle, message, LogColor)
             {
-                LogDateTime = LogUTCTime ? DateTime.Now.ToUniversalTime() : DateTime.Now.ToLocalTime()
+                LogDateTime = LogUTCTime ? DateTime.UtcNow : DateTime.Now
             };
 
             logAction(Logger, args.LogText, null);
@@ -342,13 +342,13 @@ namespace LogViewer
                 logAction = LogErrorException; // default to Error level if the level is not recognized
             }
 
-            headerMessage ??= "Exception occured:";
+            headerMessage ??= "Exception occurred:";
             string message = headerMessage;
             message += $"{Environment.NewLine}{exception}";
 
             var args = new LogEventArgs(logLevel, LogHandle, message, LogColor)
             {
-                LogDateTime = LogUTCTime ? DateTime.Now.ToUniversalTime() : DateTime.Now.ToLocalTime()
+                LogDateTime = LogUTCTime ? DateTime.UtcNow : DateTime.Now
             };
 
             logAction(Logger, headerMessage, exception);
