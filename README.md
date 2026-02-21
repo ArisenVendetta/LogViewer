@@ -1,6 +1,6 @@
 # LogViewer (RealTimeLogStream)
 
-**Version:** 0.2.0 | **Framework:** .NET 8.0 Windows | **License:** GPL v3
+**Version:** 0.2.0 | **Framework:** .NET 8.0 Windows | **License:** MIT
 
 A real-time log viewer control for .NET 8 WPF applications. LogViewer integrates seamlessly with `Microsoft.Extensions.Logging` to display structured, color-coded, filterable logs in your application's UI.
 
@@ -364,7 +364,7 @@ dotnet test
 
 ## License
 
-This project is licensed under the [GNU General Public License v3.0](LICENSE.txt).
+This project is licensed under the [MIT License](LICENSE.txt).
 
 ### Third-Party Licenses
 
