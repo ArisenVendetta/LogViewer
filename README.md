@@ -304,10 +304,10 @@ LogViewer is designed for multi-threaded applications:
 |------|-------------|
 | `LogControl` | WPF UserControl for displaying logs |
 | `LogControlViewModel` | ViewModel for log operations |
-| `LogViewerLoggerProvider` | `ILoggerProvider` implementation |
-| `LogViewerLogger` | `ILogger` implementation |
-| `ILogViewerSink` | Interface for log event routing |
-| `LogViewerSink` | Default singleton sink |
+| `BaseLoggerProvider` | `ILoggerProvider` implementation |
+| `BaseLogger` | `ILogger` implementation |
+| `IBaseLoggerSink` | Interface for log event routing |
+| `BaseLoggerSink` | Default singleton sink |
 | `LogEventArgs` | Log event data container |
 | `LogCollection` | Thread-safe observable collection |
 
