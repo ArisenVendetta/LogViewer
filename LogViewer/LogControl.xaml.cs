@@ -1,4 +1,5 @@
-﻿using System.Windows;
+﻿using System.Diagnostics;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Documents;
@@ -470,7 +471,17 @@ namespace LogViewer
             {
                 // Handle any exceptions that may occur during the generation of the DataTemplate.
                 // This could include logging the error or providing a fallback template.
-                BaseLogger.LogExceptionActions[LogLevel.Critical](_viewModel.Logger, "Error generating log display template", ex);
+                const string message = "Error generating log display template";
+                if (_viewModel.Logger is null)
+                {
+                    Debug.WriteLine(message);
+                    Debug.WriteLine(ex.ToString());
+                }
+                else
+                {
+                    BaseLogger.LogExceptionActions[LogLevel.Critical](_viewModel.Logger, "Error generating log display template", ex);
+                }
+
                 return __logList.ItemTemplate; // Return the existing template as a fallback.
             }
         }
@@ -556,17 +567,17 @@ namespace LogViewer
         {
             if (text == null) return null;
             FrameworkElementFactory output = new(typeof(Run));
-            var content = GetLogEventArgsNameIfPlaceholder(text);
-            if (content.Bindable)
+            var (Bindable, Component) = GetLogEventArgsNameIfPlaceholder(text);
+            if (Bindable)
             {
-                output.SetBinding(Run.TextProperty, new Binding(content.Component)
+                output.SetBinding(Run.TextProperty, new Binding(Component)
                 {
                     Mode = BindingMode.OneWay
                 });
             }
             else
             {
-                output.SetValue(Run.TextProperty, content.Component.Trim());
+                output.SetValue(Run.TextProperty, Component.Trim());
             }
 
             return output;
@@ -632,7 +643,7 @@ namespace LogViewer
                     handleElements.Add(suffix);
             }
 
-            return handleElements.ToArray();
+            return [.. handleElements];
         }
 
         /// <summary>
@@ -679,7 +690,7 @@ namespace LogViewer
                     handleElements.Add(suffix);
             }
 
-            return handleElements.ToArray();
+            return [.. handleElements];
         }
 
         /// <summary>
@@ -730,7 +741,7 @@ namespace LogViewer
             {
                 if (_supportedPlacementHolders.Any(x => component.Contains(x)))
                 {
-                    if (subsection.Count > 0) sections.Add(subsection.ToArray());
+                    if (subsection.Count > 0) sections.Add([.. subsection]);
                     subsection.Clear();
                     sections.Add([component]);
                 }
@@ -739,7 +750,7 @@ namespace LogViewer
                     subsection.Add(component);
                 }
             }
-            return sections.ToArray();
+            return [.. sections];
         }
 
         #region Dependency Properties

@@ -37,8 +37,8 @@ namespace LogViewer.Converters
                     LogLevel.Trace       => System.Windows.Media.Colors.Gray,
                     LogLevel.Debug       => System.Windows.Media.Colors.Blue,
                     LogLevel.Warning     => System.Windows.Media.Colors.Orange,
-                    LogLevel.Error       => System.Windows.Media.Colors.OrangeRed,
-                    LogLevel.Critical    => System.Windows.Media.Colors.Red,
+                    LogLevel.Error       => System.Windows.Media.Colors.Red,
+                    LogLevel.Critical    => System.Windows.Media.Colors.DarkRed,
                     _                    => System.Windows.Media.Colors.Black
                 };
             }

@@ -12,7 +12,7 @@ namespace LogViewer
     /// Provides a base class for logging functionality, routing all log messages to a central real-time log viewer.
     /// Implements <see cref="ILoggable"/> and supports structured, color-coded, and event-driven logging.
     /// </summary>
-    public abstract partial class BaseLogger : ILoggable, ILogger
+    public partial class BaseLogger : ILoggable, ILogger
     {
         /// <summary>
         /// Predefined logging actions for trace-level messages.
@@ -89,6 +89,9 @@ namespace LogViewer
             { LogLevel.Critical, LogCriticalException }
         };
 
+        private readonly IBaseLoggerSink? _sink;
+        private readonly BaseLoggerProvider? _provider;
+
         /// <summary>
         /// Initializes a new instance of the <see cref="BaseLogger"/> class.
         /// </summary>
@@ -114,6 +117,38 @@ namespace LogViewer
         }
 
         /// <summary>
+        /// Initializes a new instance of the <see cref="BaseLogger"/> class for the DI pattern.
+        /// Used by <see cref="BaseLoggerProvider"/> to create logger instances.
+        /// </summary>
+        /// <param name="categoryName">The category name for this logger.</param>
+        /// <param name="color">The color to associate with log entries from this logger.</param>
+        /// <param name="sink">The sink to write log events to.</param>
+        /// <param name="innerLogger">Optional inner logger to pass through log calls to.</param>
+        /// <param name="provider">The provider that created this logger.</param>
+        internal BaseLogger(
+            string categoryName,
+            Color color,
+            IBaseLoggerSink sink,
+            ILogger? innerLogger,
+            BaseLoggerProvider provider)
+        {
+            ArgumentNullException.ThrowIfNull(sink);
+            ArgumentNullException.ThrowIfNull(provider);
+
+            _sink = sink;
+            _provider = provider;
+
+            // Dual sink write prevention is handled in Log() and LogException():
+            // if Logger is BaseLogger, we skip _sink.Write() since the inner logger handles it
+            Logger = innerLogger;
+
+            ExcludeCharsFromHandle ??= [];
+            LogHandle = SanitizeHandle(categoryName ?? string.Empty);
+            LogColor = color;
+            LogLevel = provider.MinimumLevel;
+        }
+
+        /// <summary>
         /// Gets the handle (name) for this logger instance.
         /// </summary>
         public string LogHandle { get; }
@@ -123,8 +158,9 @@ namespace LogViewer
         public Color LogColor { get; set; }
         /// <summary>
         /// Gets the underlying <see cref="ILogger"/> instance used for logging.
+        /// May be null in DI mode when no inner logger is provided.
         /// </summary>
-        public ILogger Logger { get; }
+        public ILogger? Logger { get; }
         /// <summary>
         /// Gets or sets the current log level for the logger.
         /// </summary>
@@ -144,20 +180,24 @@ namespace LogViewer
         {
             if (message is null) return;
 
-            // default to Information level if the LogLevel is not recognized
-            if (!LogActions.TryGetValue(level, out var logAction))
-            {
-                logAction = LogInfoMessage;
-            }
-
             var args = new LogEventArgs(level, LogHandle, message, LogColor)
             {
                 LogDateTime = LogUTCTime ? DateTime.UtcNow : DateTime.Now
             };
 
-            logAction(Logger, args.LogText, null);
+            // Write to sink if we have one (DI mode)
+            if (Logger is not BaseLogger)
+                _sink?.Write(args);
 
-            OnLogEvent(args); // this should never raise an exception, everything is caught/logged within that method if there is an error
+            // Pass through to Logger if we have one
+            if (Logger != null)
+            {
+                if (!LogActions.TryGetValue(level, out var logAction))
+                    logAction = LogInfoMessage;
+                logAction(Logger, args.LogText, null);
+            }
+
+            OnLogEvent(args);
         }
 
         /// <summary>
@@ -182,7 +222,7 @@ namespace LogViewer
             }
             catch (Exception ex)
             {
-                LogErrorException(Logger, $"Error when attempting to log iterable of type: {typeof(T).Name}", ex);
+                if (Logger != null) LogErrorException(Logger, $"Error when attempting to log iterable of type: {typeof(T).Name}", ex);
             }
         }
 
@@ -208,7 +248,7 @@ namespace LogViewer
             }
             catch (Exception ex)
             {
-                LogErrorException(Logger, $"Error when attempting to log dictionary of types - Key: {typeof(TKey).Name}, Value: {typeof(TValue).Name}", ex);
+                if (Logger != null) LogErrorException(Logger, $"Error when attempting to log dictionary of types - Key: {typeof(TKey).Name}, Value: {typeof(TValue).Name}", ex);
             }
         }
 
@@ -336,12 +376,6 @@ namespace LogViewer
         {
             if (exception is null) return;
 
-            // default to Error level if the LogLevel is not recognized
-            if (!LogExceptionActions.TryGetValue(logLevel, out var logAction))
-            {
-                logAction = LogErrorException; // default to Error level if the level is not recognized
-            }
-
             headerMessage ??= "Exception occurred:";
             string message = headerMessage;
             message += $"{Environment.NewLine}{exception}";
@@ -351,9 +385,20 @@ namespace LogViewer
                 LogDateTime = LogUTCTime ? DateTime.UtcNow : DateTime.Now
             };
 
-            logAction(Logger, headerMessage, exception);
+            // Write to sink if we have one (DI mode), but skip if Logger is a BaseLogger
+            // to avoid dual sink writes (the inner BaseLogger will write to sink itself)
+            if (Logger is not BaseLogger)
+                _sink?.Write(args);
 
-            OnLogEvent(args); // this should never raise an exception, everything is caught/logged within that method if there is an error
+            // Pass through to Logger if we have one
+            if (Logger != null)
+            {
+                if (!LogExceptionActions.TryGetValue(logLevel, out var logAction))
+                    logAction = LogErrorException;
+                logAction(Logger, headerMessage, exception);
+            }
+
+            OnLogEvent(args);
         }
 
         /// <summary>
@@ -419,17 +464,17 @@ namespace LogViewer
             }
             catch (Exception ex)
             {
-                LogErrorException(Logger, "Error when trying to raise log event, one or more subscribers failed", ex);
+                if (Logger != null) LogErrorException(Logger, "Error when trying to raise log event, one or more subscribers failed", ex);
             }
         }
 
         /// <summary>
-        /// Raises both <see cref="BaseLogger.DebugLogEvent"/> (logcontrol) and <see cref="LogEvent" /> (subscribers) events for the specified event arguments.
+        /// Raises log events for the specified event arguments.
+        /// Raises <see cref="LogEvent"/> for instance-level subscribers.
         /// </summary>
         /// <param name="eventArgs">The event arguments to pass to subscribers.</param>
         protected void OnLogEvent(LogEventArgs eventArgs)
         {
-            _ = OnRaiseLogEventAsync(BaseLogger.DebugLogEvent, eventArgs);
             _ = OnRaiseLogEventAsync(LogEvent, eventArgs);
         }
 
@@ -447,8 +492,6 @@ namespace LogViewer
         /// <param name="formatter">A function that formats the state and exception into a log message string.</param>
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
-            if (!IsEnabled(logLevel)) return;
-
             string message = formatter(state, null);
             if (exception is null)
                 Log(logLevel, message);
@@ -469,19 +512,10 @@ namespace LogViewer
         /// </summary>
         /// <typeparam name="TState">The type of the state to associate with the scope. Must be a non-nullable type.</typeparam>
         /// <param name="state">The state to associate with the scope. This value cannot be null.</param>
-        /// <returns>An <see cref="IDisposable"/> that ends the logical operation scope on disposal. Returns a no-op disposable
-        /// if the scope is not applicable.</returns>
+        /// <returns>An <see cref="IDisposable"/> that ends the logical operation scope on disposal.</returns>
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull
         {
-            return new NoOpDisposable();
-        }
-
-        private sealed class NoOpDisposable : IDisposable
-        {
-            public void Dispose()
-            {
-                // No operation
-            }
+            return Logger?.BeginScope(state);
         }
     }
 }

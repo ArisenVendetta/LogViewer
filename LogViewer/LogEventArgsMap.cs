@@ -26,7 +26,7 @@ namespace LogViewer
             Map(m => m.ThreadId).Name("ThreadId");
             Map(m => m.LogColor)
                 .Name("Color")
-                .Convert(args => args.Value.LogColor.ToString());
+                .Convert(args => args.Value.LogColor.ToString(System.Globalization.CultureInfo.InvariantCulture));
             Map(m => m.LogHandle).Name("Handle");
             Map(m => m.LogText)
                 .Name("Message")

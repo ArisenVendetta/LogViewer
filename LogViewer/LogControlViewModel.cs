@@ -15,6 +15,7 @@ using Microsoft.Win32;
 using Newtonsoft.Json;
 using System.Runtime.InteropServices;
 using System.IO;
+using System.Diagnostics;
 
 namespace LogViewer
 {
@@ -26,11 +27,12 @@ namespace LogViewer
     public class LogControlViewModel : IDisposable
     {
         private readonly Dispatcher _dispatcher;
+        private readonly IBaseLoggerSink _sink;
         private string _logHandleFilter = ".*";
         private bool _logHandleIgnoreCase;
         private Regex _handleCheck = new(".*", RegexOptions.NonBacktracking, TimeSpan.FromMilliseconds(100));
         private bool disposedValue;
-        private ILogger _logger;
+        private ILogger? _logger;
         private bool _isPaused;
         private bool _pauseEnabled = true;
         private readonly List<LogEventArgs> _pauseBuffer = [];
@@ -55,10 +57,8 @@ namespace LogViewer
         /// <summary>
         /// Gets the logger instance for this view model.
         /// </summary>
-#pragma warning disable CS8603, CS8601 // CS8603: Possible null reference return.
         // CS8601: Possible null reference assignment.
-        internal ILogger Logger => _logger ??= CreateLoggerIfNotDesignMode(); // will never be null except for in design mode, where logging is not needed.
-#pragma warning restore CS8603, CS8601
+        internal ILogger? Logger => _logger ??= CreateLoggerIfNotDesignMode(); // will never be null except for in design mode, where logging is not needed.
 
         /// <summary>
         /// Gets the observable collection of log events for data binding.
@@ -264,17 +264,16 @@ namespace LogViewer
         /// Initializes a new instance of the <see cref="LogControlViewModel"/> class.
         /// </summary>
         /// <param name="dispatcher">The WPF dispatcher for UI thread synchronization.</param>
+        /// <param name="sink">Optional log viewer sink. Defaults to <see cref="BaseLoggerSink.Instance"/>.</param>
         /// <param name="logHandleFilter">Optional initial log handle filter.</param>
         /// <exception cref="ArgumentNullException">Thrown if dispatcher is null.</exception>
-        /// <exception cref="InvalidOperationException">Thrown if logger factory is not initialized.</exception>
-#pragma warning disable CS8618, CS8601 // CS8618: Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
-                                       // CS8601: Possible null reference assignment.
-        public LogControlViewModel(Dispatcher dispatcher, string? logHandleFilter = null)
+        public LogControlViewModel(Dispatcher dispatcher, IBaseLoggerSink? sink = null, string? logHandleFilter = null)
         {
             _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+            _sink = sink ?? BaseLoggerSink.Instance;
             LogHandleFilter = logHandleFilter ?? string.Empty;
             _logger = CreateLoggerIfNotDesignMode(); // will never be null except for in design mode, where logging is not needed.
-            BaseLogger.DebugLogEvent += OnLogEventAsync;
+            _sink.LogReceived += OnLogEventAsync;
 
             ClearLogsCommand = new AsyncRelayCommand(ClearLogsAsync);
             TogglePauseCommand = new(() =>
@@ -286,17 +285,18 @@ namespace LogViewer
 
             SelectedExportFileType = SupportedExportFileTypes.FirstOrDefault() ?? new FileType("JSON", ".json");
         }
-#pragma warning restore CS8601, CS8601
 
         /// <summary>
-        /// Needed to move creation of logger to a separate method check for design mode preventing the exception from showing in the XAML designer
+        /// Needed to move creation of logger to a separate method check for design mode preventing the exception from showing in the XAML designer.
+        /// Returns null if in design mode or if LoggerFactory is not available.
         /// </summary>
-        /// <returns></returns>
-        /// <exception cref="InvalidOperationException"></exception>
-        private ILogger? CreateLoggerIfNotDesignMode()
+        /// <returns>An ILogger instance or null.</returns>
+        private static ILogger? CreateLoggerIfNotDesignMode()
         {
             if (DesignerProperties.GetIsInDesignMode(new DependencyObject())) return null;
-            return BaseLogger.LoggerFactory?.CreateLogger<LogControlViewModel>() ?? throw new InvalidOperationException($"Must call {nameof(BaseLogger)}.{nameof(BaseLogger.Initialize)} before creating an instance of {nameof(LogControlViewModel)}");
+            // Try sink's factory first (new DI pattern), then fall back to BaseLogger (inheritance pattern)
+            var factory = BaseLoggerSink.Instance.LoggerFactory ?? BaseLogger.LoggerFactory;
+            return factory?.CreateLogger<LogControlViewModel>();
         }
 
         /// <summary>
@@ -424,7 +424,16 @@ namespace LogViewer
             }
             catch (Exception ex)
             {
-                BaseLogger.LogErrorException(_logger, "Error while clearing visible logs in LogControlViewModel.", ex);
+                const string message = "Error while clearing visible logs in LogControlViewModel.";
+                if (_logger is null)
+                {
+                    Debug.WriteLine(message);
+                    Debug.WriteLine(ex);
+                }
+                else
+                {
+                    BaseLogger.LogErrorException(_logger, message, ex);
+                }
             }
         }
 
@@ -438,7 +447,7 @@ namespace LogViewer
                 await ClearLogsAsync();
 
                 // Single-pass algorithm: enumerate queue once, filter into pre-sized list
-                var queue = BaseLogger.DebugLogQueue;
+                var queue = _sink.LogQueue;
                 if (queue is null) return;
 
                 var filteredLogs = new List<LogEventArgs>(Math.Min(queue.Count, MaxLogSize));
@@ -460,7 +469,16 @@ namespace LogViewer
             }
             catch (Exception ex)
             {
-                BaseLogger.LogErrorException(_logger, "Error while updating visible logs in LogControlViewModel.", ex);
+                const string message = "Error while updating visible logs in LogControlViewModel.";
+                if (_logger is null)
+                {
+                    Debug.WriteLine(message);
+                    Debug.WriteLine(ex);
+                }
+                else
+                {
+                    BaseLogger.LogErrorException(_logger, message, ex);
+                }
             }
         }
 
@@ -512,7 +530,16 @@ namespace LogViewer
             }
             catch (Exception ex)
             {
-                BaseLogger.LogErrorException(_logger, "Error while adding and trimming log events in LogControlViewModel.", ex);
+                const string message = "Error while adding and trimming log events in LogControlViewModel.";
+                if (_logger is null)
+                {
+                    Debug.WriteLine(message);
+                    Debug.WriteLine(ex);
+                }
+                else
+                {
+                    BaseLogger.LogErrorException(_logger, message, ex);
+                }
             }
         }
 
@@ -639,7 +666,7 @@ namespace LogViewer
                     return output;
                 }
 
-                var exportLogs = new List<LogEventArgs>(LogEvents.ToList());
+                var exportLogs = new List<LogEventArgs>([.. LogEvents]);
                 output.FileType = SelectedExportFileType;
                 output.FilePath = filePath;
                 StringBuilder contents = (SelectedExportFileType?.Extension ?? ".json") switch
@@ -658,7 +685,15 @@ namespace LogViewer
             {
                 output.ErrorMessage = "Error while exporting logs in LogControlViewModel";
                 output.Exception = ex;
-                BaseLogger.LogErrorException(_logger, output.ErrorMessage, ex);
+                if (_logger is null)
+                {
+                    Debug.WriteLine(output.ErrorMessage);
+                    Debug.WriteLine(ex);
+                }
+                else
+                {
+                    BaseLogger.LogErrorException(_logger, output.ErrorMessage, ex);
+                }
             }
             finally
             {
@@ -742,7 +777,7 @@ namespace LogViewer
             {
                 if (disposing)
                 {
-                    BaseLogger.DebugLogEvent -= OnLogEventAsync;
+                    _sink.LogReceived -= OnLogEventAsync;
                 }
 
                 disposedValue = true;

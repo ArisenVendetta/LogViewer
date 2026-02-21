@@ -57,7 +57,7 @@ namespace LogViewer
         /// </summary>
         public int ThreadId { get; } = Environment.CurrentManagedThreadId;
 
-        private Lazy<Guid> _lazyId = new(() => Guid.NewGuid());
+        private readonly Lazy<Guid> _lazyId = new(() => Guid.NewGuid());
         /// <summary>
         /// Gets the unique identifier for this log event instance.
         /// </summary>
@@ -111,7 +111,7 @@ namespace LogViewer
                 .Replace("{timestamp}", LogDateTimeFormatted)
                 .Replace("{loglevel}", LogLevel.ToString())
                 .Replace("{threadid}", ThreadId.ToString(CultureInfo.InvariantCulture))
-                .Replace("{color}", LogColor.ToString())
+                .Replace("{color}", LogColor.ToString(System.Globalization.CultureInfo.InvariantCulture))
                 .Replace("{handle}", LogHandle)
                 .Replace("{message}", LogText);
 

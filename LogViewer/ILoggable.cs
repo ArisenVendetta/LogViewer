@@ -27,8 +27,9 @@ namespace LogViewer
 
         /// <summary>
         /// Gets the underlying <see cref="ILogger"/> instance used for logging.
+        /// May be null in DI mode when the inner logger is a <see cref="BaseLogger"/>.
         /// </summary>
-        ILogger Logger { get; }
+        ILogger? Logger { get; }
         /// <summary>
         /// Gets or sets the current log level for the logger.
         /// </summary>

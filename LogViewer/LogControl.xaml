@@ -50,6 +50,12 @@
                   VirtualizingStackPanel.IsVirtualizing="true"
                   VirtualizingStackPanel.VirtualizationMode="Recycling"
                   SelectionMode="Extended">
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                    <Setter Property="VerticalContentAlignment" Value="Center"/>
+                </Style>
+            </ListView.ItemContainerStyle>
         </ListView>
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>

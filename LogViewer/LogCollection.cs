@@ -28,7 +28,7 @@ namespace LogViewer
         /// </summary>
         public IEnumerable<LogEventArgs> Items
         {
-            get { lock (_lockObject) { return new List<LogEventArgs>(_logs); } }
+            get { lock (_lockObject) { return [.. _logs]; } }
         }
 
         /// <summary>
@@ -107,9 +107,10 @@ namespace LogViewer
 
             bool added = false;
             List<LogEventArgs> addedEvents = [];
-            int startIndex = _logs.Count;
+            int startIndex = -1;
             lock (_lockObject)
             {
+                startIndex = _logs.Count;
                 foreach (var logEvent in logEvents)
                 {
                     ArgumentNullException.ThrowIfNull(logEvent, paramName: nameof(logEvent));
@@ -173,7 +174,7 @@ namespace LogViewer
             List<LogEventArgs> itemsToRemove = [];
             lock (_lockObject)
             {
-                itemsToRemove = _logs.Skip(startIndex).Take(count).ToList();
+                itemsToRemove = [.. _logs.Skip(startIndex).Take(count)];
                 if (itemsToRemove.Count > 0)
                 {
                     foreach (var item in itemsToRemove)
@@ -344,7 +345,7 @@ namespace LogViewer
             List<LogEventArgs> snapshot;
             lock (_lockObject)
             {
-                snapshot = new(_logs);
+                snapshot = [.. _logs];
             }
             return snapshot.GetEnumerator();
         }

@@ -1,14 +1,5 @@
-﻿using System;
 using System.Reflection;
-using System.Text;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.IO;
 using LogViewer;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -20,7 +11,7 @@ namespace LogViewerExample
     public partial class MainWindow : Window
     {
         private readonly string _title = string.Empty;
-        private readonly SomeObject _loggableObject = new SomeObject(nameof(MainWindow));
+        private readonly SomeObject _loggableObject;
         private readonly ExampleVM _example;
 
         public MainWindow()
@@ -31,9 +22,12 @@ namespace LogViewerExample
             _title += $" - {BaseLogger.Version}";
             Title = _title;
 
-            _example = new ExampleVM(App.ServiceProvider);
+            // Resolve ExampleVM via DI - it receives ILogger<ExampleVM> automatically
+            _example = App.ServiceProvider.GetRequiredService<ExampleVM>();
             _exampleControls.DataContext = _example;
 
+            // Create a SomeObject using the legacy BaseLogger pattern (for demonstration)
+            _loggableObject = new SomeObject(nameof(MainWindow));
             _loggableObject.LogInformation("Logging initialized");
         }
 
@@ -43,13 +37,15 @@ namespace LogViewerExample
             {
                 await _example.DisposeAsync();
             }
+#pragma warning disable RCS1075 // Avoid empty catch clause that catches System.Exception
             catch (Exception)
             {
                 // swallow it, this is an example application and it's closing
             }
+#pragma warning restore RCS1075 // Avoid empty catch clause that catches System.Exception
         }
 
-        public T Resolve<T>() where T : notnull
+        public static T Resolve<T>() where T : notnull
             => App.ServiceProvider.GetRequiredService<T>();
     }
 }

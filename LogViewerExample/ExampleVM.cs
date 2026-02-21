@@ -1,10 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Reflection;
 using System.Windows.Media;
 using LogViewer;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,32 +9,35 @@ using PropertyChanged;
 namespace LogViewerExample
 {
     /// <summary>
-    /// Represents a view model that provides commands for generating and managing log messages,  including support for
-    /// continuous log generation and exception handling.
+    /// Represents a view model that provides commands for generating and managing log messages,
+    /// including support for continuous log generation and exception handling.
     /// </summary>
-    /// <remarks>This class implements <see cref="IDisposable"/> and <see cref="IAsyncDisposable"/> to ensure
-    /// proper  cleanup of resources, such as stopping continuous log generation tasks. It also extends  <see
-    /// cref="BaseLogger"/>, enabling logging functionality for various log levels.</remarks>
+    /// <remarks>
+    /// This example demonstrates both the new DI-based ILogger pattern and the legacy BaseLogger inheritance.
+    /// In production code, prefer using ILogger&lt;T&gt; via dependency injection.
+    /// </remarks>
     [AddINotifyPropertyChangedInterface]
-    internal class ExampleVM : BaseLogger, IDisposable, IAsyncDisposable
+    internal class ExampleVM : IDisposable, IAsyncDisposable
     {
         private bool _disposedValue;
         private List<Task>? _logGenerators;
 
-        private IServiceProvider _serviceProvider;
-        private ILogger _logger;
+        private readonly ILogger<ExampleVM> _logger;
+        private readonly ILoggerFactory _loggerFactory;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="ExampleVM"/> class and sets up the available commands.
+        /// Initializes a new instance of the <see cref="ExampleVM"/> class.
+        /// Uses the new DI-based logging pattern with ILogger&lt;T&gt;.
         /// </summary>
-        /// <remarks>This constructor initializes the <see cref="Commands"/> collection with a predefined
-        /// set of commands that can be executed by the view model. Each command represents a specific action, such as
-        /// generating log messages or handling exceptions.</remarks>
-        public ExampleVM(IServiceProvider serviceProvider)
+        /// <param name="logger">The logger for this view model.</param>
+        /// <param name="loggerFactory">The logger factory for creating additional loggers.</param>
+        public ExampleVM(ILogger<ExampleVM> logger, ILoggerFactory loggerFactory)
         {
-            ArgumentNullException.ThrowIfNull(serviceProvider, nameof(serviceProvider));
-            _serviceProvider = serviceProvider;
-            _logger = _serviceProvider.GetRequiredService<BaseLoggerProvider>().CreateLogger("SomeRandomLogger");
+            ArgumentNullException.ThrowIfNull(logger, nameof(logger));
+            ArgumentNullException.ThrowIfNull(loggerFactory, nameof(loggerFactory));
+
+            _logger = logger;
+            _loggerFactory = loggerFactory;
 
             Commands = [
                 new CustomCommand("Generate message for each log level", GenerateEachLogLevelAsync),
@@ -47,39 +45,36 @@ namespace LogViewerExample
                 new CustomCommand("Stop continuous log generation", StopContinuousLogMessagesAsync),
                 new CustomCommand("Generate exception", new Command(GenerateException))
             ];
-            _logger.LogInformation($"Initialized {nameof(ExampleVM)} with {Commands.Count} commands.");
+
+            _logger.LogInformation("Initialized {ClassName} with {CommandCount} commands.", nameof(ExampleVM), Commands.Count);
         }
 
         /// <summary>
         /// Gets the collection of commands associated with this instance.
         /// </summary>
-        /// <remarks>The collection can be used to add, remove, or enumerate commands. Changes to the
-        /// collection will automatically notify any observers, as it is an <see
-        /// cref="ObservableCollection{T}"/>.</remarks>
         public ObservableCollection<CustomCommand> Commands { get; protected set; }
 
         /// <summary>
         /// Generates and logs a message for each log level asynchronously.
         /// </summary>
-        /// <remarks>This method iterates through all available log levels (e.g., Critical, Warning,
-        /// Information, Debug, Trace, and Error), invoking the corresponding logging function for each level. A random
-        /// delay is introduced between log messages to simulate asynchronous behavior.</remarks>
-        /// <returns>A <see cref="Task"/> that represents the asynchronous operation.</returns>
         private async Task GenerateEachLogLevelAsync()
         {
             Random random = new(Environment.TickCount);
             List<Action<string>> logFunctions = [
-                LogCritical,
-                LogWarning,
-                LogInformation,
-                LogDebug,
-                LogTrace,
-                LogError
+                msg => _logger.LogCritical("{Message} [LogCritical]", msg),
+                msg => _logger.LogError("{Message} [LogError]", msg),
+                msg => _logger.LogWarning("{Message} [LogWarning]", msg),
+                msg => _logger.LogInformation("{Message} [LogInformation]", msg),
+                msg => _logger.LogDebug("{Message} [LogDebug]", msg),
+                msg => _logger.LogTrace("{Message} [LogTrace]", msg)
             ];
-            _logger.LogInformation($"Starting {nameof(GenerateEachLogLevelAsync)} with {logFunctions.Count} log functions.");
+
+            _logger.LogInformation("Starting {MethodName} with {Count} log functions.",
+                nameof(GenerateEachLogLevelAsync), logFunctions.Count);
+
             foreach (var logFunction in logFunctions)
             {
-                logFunction($"This is an auto-generated log message [{logFunction.Method.Name}, invoked by {nameof(GenerateEachLogLevelAsync)}]");
+                logFunction($"This is an auto-generated log message [invoked by {nameof(GenerateEachLogLevelAsync)}]");
                 await Task.Delay(random.Next(200, 800));
             }
         }
@@ -92,10 +87,6 @@ namespace LogViewerExample
         /// <summary>
         /// Asynchronously generates a continuous stream of log messages with randomized properties.
         /// </summary>
-        /// <remarks>This method stops any previously running log generation process before starting a new
-        /// one.  It creates multiple log generators, each producing log messages with random colors and log levels. The
-        /// method runs the log generation process on a background thread and supports cancellation.</remarks>
-        /// <returns></returns>
         private async Task GenerateContinuousLogMessagesAsync()
         {
             try
@@ -108,15 +99,18 @@ namespace LogViewerExample
                     _logGenerators = [];
                     CancellationToken = new CancellationTokenSource();
                     LogLevel[] logLevels =
-                    {
+                    [
                         LogLevel.Trace,
                         LogLevel.Debug,
                         LogLevel.Information,
                         LogLevel.Warning,
                         LogLevel.Error,
                         LogLevel.Critical
-                    };
-                    _logger.LogInformation($"Starting {nameof(GenerateContinuousLogMessagesAsync)} with {logLevels.Length} log levels.");
+                    ];
+
+                    _logger.LogInformation("Starting {MethodName} with {Count} log levels.",
+                        nameof(GenerateContinuousLogMessagesAsync), logLevels.Length);
+
                     for (int i = 0; i < 300; i++)
                     {
                         Color randomColor = Color.FromArgb(255, (byte)random.Next(256), (byte)random.Next(256), (byte)random.Next(256));
@@ -127,21 +121,21 @@ namespace LogViewerExample
             }
             catch (Exception ex)
             {
-                LogException(ex, $"Error in {nameof(GenerateContinuousLogMessagesAsync)}");
+                _logger.LogError(ex, "Error in {MethodName}", nameof(GenerateContinuousLogMessagesAsync));
             }
         }
 
         /// <summary>
         /// Stops the continuous generation of log messages asynchronously.
         /// </summary>
-        /// <remarks>This method cancels any ongoing log generation tasks and waits for their completion.
-        /// It has no effect if there are no active log generators or if the cancellation token is null.</remarks>
-        /// <returns>A task that represents the asynchronous operation of stopping the log generators.</returns>
         private async Task StopContinuousLogMessagesAsync()
         {
             if (CancellationToken is null) return;
             if (_logGenerators is null || _logGenerators.Count == 0) return;
-            _logger.LogInformation($"Stopping continuous log messages, cancelling and waiting for {_logGenerators.Count} log generators to complete.");
+
+            _logger.LogInformation("Stopping continuous log messages, cancelling and waiting for {Count} log generators to complete.",
+                _logGenerators.Count);
+
             CancellationToken?.Cancel();
             await Task.WhenAll(_logGenerators);
         }
@@ -149,18 +143,17 @@ namespace LogViewerExample
         /// <summary>
         /// Simulates the generation of a nested exception and logs it.
         /// </summary>
-        /// <remarks>This method creates a top-level exception with multiple inner exceptions for
-        /// demonstration or testing purposes. The exception is caught and logged using the <see cref="LogException"/>
-        /// method.</remarks>
         private void GenerateException()
         {
             try
             {
-                throw new Exception("This is the top level exception", new Exception("This is the second level exception", new Exception("This is the lowest level exception")));
+                throw new Exception("This is the top level exception",
+                    new Exception("This is the second level exception",
+                        new Exception("This is the lowest level exception")));
             }
             catch (Exception ex)
             {
-                LogException(ex);
+                _logger.LogError(ex, "Generated test exception");
             }
         }
 
@@ -171,17 +164,11 @@ namespace LogViewerExample
             {
                 if (disposing)
                 {
+                    CancellationToken?.Dispose();
                 }
-
                 _disposedValue = true;
             }
         }
-
-        // ~ExampleVM()
-        // {
-        //     // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
-        //     Dispose(disposing: false);
-        // }
 
         public void Dispose()
         {
@@ -197,14 +184,14 @@ namespace LogViewerExample
                 {
                     await StopContinuousLogMessagesAsync();
                 }
+#pragma warning disable RCS1075 // Avoid empty catch clause that catches System.Exception
                 catch (Exception)
                 {
                     // swallow it, this is an example application and it's closing
-                    ; // this is just to get rid of the compiler warning
                 }
+#pragma warning restore RCS1075 // Avoid empty catch clause that catches System.Exception
 
                 Dispose(disposing: false);
-
                 _disposedValue = true;
                 GC.SuppressFinalize(this);
             }

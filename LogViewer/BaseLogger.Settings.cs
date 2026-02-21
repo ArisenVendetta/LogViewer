@@ -1,17 +1,12 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Diagnostics.Contracts;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Media;
 using Microsoft.Extensions.Logging;
 
 namespace LogViewer
 {
-    public abstract partial class BaseLogger
+    public partial class BaseLogger
     {
         internal const string DefaultLogDateTimeFormat = "yyyy-MM-dd HH:mm:ss.fff (zzz)";
         internal const string DefaultLogExportFormat = "{timestamp}|{loglevel}|{threadid}|{handle}|{message}";
@@ -46,43 +41,14 @@ namespace LogViewer
         private static string _logExportFormat = DefaultLogExportFormat;
         private static string _defaultLogDisplayFormat = LogDisplayFormatFallback;
 
+        private static readonly object _excludeCharsLock = new();
+        private static IReadOnlyCollection<char> _excludeCharsFromHandle = ['.', '-'];
+        private static HashSet<char> _excludeCharsSet = new(['.', '-', ' ']);
+
         /// <summary>
         /// Indicates whether the system has been initialized.
         /// </summary>
         internal static bool Initialized;
-        /// <summary>
-        /// Occurs when a debug log event is triggered.
-        /// </summary>
-        /// <remarks>This event is used to handle debug-level log messages. Subscribers can attach
-        /// handlers  to process or respond to debug log events as needed.</remarks>
-        internal static event LogEvent? DebugLogEvent;
-        /// <summary>
-        /// Gets the queue that stores debug log events for processing.
-        /// </summary>
-        internal static ConcurrentQueue<LogEventArgs>? DebugLogQueue { get; private set; }
-        /// <summary>
-        /// Handles log events by enqueuing them into the debug log queue.
-        /// </summary>
-        /// <remarks>This method enqueues the provided log event into the debug log queue. If the queue
-        /// exceeds the maximum allowed size, the oldest entries are removed to maintain the size limit. The method is
-        /// designed to run asynchronously.</remarks>
-        /// <param name="sender">The source of the log event. This parameter is not used in the method.</param>
-        /// <param name="e">The log event arguments containing the log data to be enqueued. Must not be <see langword="null"/>.</param>
-        /// <returns></returns>
-        internal static async Task LogQueueHandlerAsync(object sender, LogEventArgs e)
-        {
-            if (e is null) return;
-            if (DebugLogQueue is null) return;
-            DebugLogQueue.Enqueue(e);
-            int overflow = DebugLogQueue.Count - MaxLogQueueSize;
-            if (overflow > 0)
-            {
-                // Remove overflow plus 10% buffer to reduce frequency of trimming
-                int toRemove = overflow + (MaxLogQueueSize / 10);
-                for (int i = 0; i < toRemove && DebugLogQueue.TryDequeue(out _); i++) { }
-            }
-            await Task.CompletedTask;
-        }
 
         /// <summary>
         /// Gets the version of the assembly containing the <see cref="BaseLogger"/> class.
@@ -92,9 +58,12 @@ namespace LogViewer
         /// <summary>
         /// Initializes the logging system with the specified logger factory and configuration settings.
         /// </summary>
-        /// <remarks>This method must be called before any logging operations are performed. It sets up
-        /// the logging system, including initializing the log queue and event handlers. Subsequent calls to this method
-        /// will have no effect if the logging system has already been initialized.</remarks>
+        /// <remarks>
+        /// <para>This method must be called before any logging operations are performed when using the inheritance pattern
+        /// (classes that extend <see cref="BaseLogger"/>).</para>
+        /// <para>For the DI pattern using <c>ILogger&lt;T&gt;</c>, use <c>builder.AddLogViewer()</c> instead.</para>
+        /// <para>Subsequent calls to this method will have no effect if the logging system has already been initialized.</para>
+        /// </remarks>
         /// <param name="loggerFactory">The <see cref="ILoggerFactory"/> instance used to create loggers. This parameter cannot be <see
         /// langword="null"/>.</param>
         /// <param name="maxLogQueueSize">The maximum number of log entries that can be queued for processing. The default value is 10,000.</param>
@@ -106,8 +75,6 @@ namespace LogViewer
             if (Initialized) return;
             ArgumentNullException.ThrowIfNull(loggerFactory, paramName: nameof(loggerFactory));
             LoggerFactory = loggerFactory;
-            DebugLogQueue = new ConcurrentQueue<LogEventArgs>();
-            DebugLogEvent += LogQueueHandlerAsync;
             Initialized = true;
             MaxLogQueueSize = maxLogQueueSize;
             LogDateTimeFormat = string.IsNullOrWhiteSpace(logDateTimeFormat) ? DefaultLogDateTimeFormat : logDateTimeFormat;
@@ -117,23 +84,33 @@ namespace LogViewer
         /// <summary>
         /// Shuts down the logging system and releases associated resources.
         /// </summary>
-        /// <remarks>After calling this method, the logging system is no longer initialized and cannot be
-        /// used until reinitialized. Any pending log events will be discarded.</remarks>
+        /// <remarks>
+        /// <para>After calling this method, the logging system is no longer initialized and cannot be
+        /// used until reinitialized.</para>
+        /// </remarks>
         public static void Shutdown()
         {
             if (!Initialized) return;
-            DebugLogEvent -= LogQueueHandlerAsync;
-            DebugLogQueue = null;
             LoggerFactory = null;
             Initialized = false;
         }
 
-        internal static string SanitizeHandle(string name)
+        /// <summary>
+        /// Sanitizes a handle/category name by removing excluded characters.
+        /// </summary>
+        /// <param name="name">The name to sanitize.</param>
+        /// <returns>The sanitized name with excluded characters removed.</returns>
+        public static string SanitizeHandle(string name)
         {
-            string sanitizedHandle = name ?? string.Empty;
-            var excludeSet = ExcludeCharsFromHandle?.ToHashSet() ?? [];
-            excludeSet.Add(' ');
-            return new string(sanitizedHandle.Where(c => !excludeSet.Contains(c)).ToArray()).Trim();
+            if (string.IsNullOrEmpty(name)) return string.Empty;
+
+            HashSet<char> excludeSet;
+            lock (_excludeCharsLock)
+            {
+                excludeSet = _excludeCharsSet;
+            }
+
+            return new string([.. name.Where(c => !excludeSet.Contains(c))]).Trim();
         }
 
         /// <summary>
@@ -188,8 +165,27 @@ namespace LogViewer
         public static bool IncludeTimestampInOutput { get; set; } = true;
         /// <summary>
         /// Gets or sets the collection of characters to exclude from handle generation.
+        /// When set, rebuilds the internal HashSet for efficient lookup.
         /// </summary>
-        public static IReadOnlyCollection<char> ExcludeCharsFromHandle { get; set; } = ['.', '-'];
+        public static IReadOnlyCollection<char> ExcludeCharsFromHandle
+        {
+            get
+            {
+                lock (_excludeCharsLock)
+                {
+                    return _excludeCharsFromHandle;
+                }
+            }
+            set
+            {
+                lock (_excludeCharsLock)
+                {
+                    _excludeCharsFromHandle = value ?? [];
+                    // Rebuild HashSet with space always included
+                    _excludeCharsSet = [.. _excludeCharsFromHandle, ' '];
+                }
+            }
+        }
         /// <summary>
         /// Gets or sets the maximum size of the log queue.
         /// </summary>

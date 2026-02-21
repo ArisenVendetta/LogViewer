@@ -1,15 +1,12 @@
-﻿using System.Configuration;
-using System.Data;
 using System.IO;
-using System.Reflection;
 using System.Windows;
+using System.Windows.Media;
 using LogViewer;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NLog;
-using NLog.Extensions.Logging;
 using NLog.Config;
-using Microsoft.Extensions.DependencyInjection;
-using System.Windows.Media;
+using NLog.Extensions.Logging;
 
 namespace LogViewerExample
 {
@@ -22,41 +19,63 @@ namespace LogViewerExample
 
         private void Application_Startup(object sender, StartupEventArgs e)
         {
+            // Configure NLog
             string nlogConfigPath = Path.Combine(Path.GetDirectoryName(Configuration.ConfigPath) ?? ".", "nlog.config");
             LogManager.ThrowConfigExceptions = true;
             LogManager.Configuration = new XmlLoggingConfiguration(nlogConfigPath);
 
-            var loggerFactory = LoggerFactory.Create(builder =>
+            // Set up dependency injection with the new AddLogViewer pattern
+            var services = new ServiceCollection();
+
+            services.AddLogging(builder =>
             {
                 builder.ClearProviders();
                 builder.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Trace);
+
+                // Add NLog for file logging
                 builder.AddNLog();
+
+                // Add LogViewer for real-time UI logging with colors
+                builder.AddLogViewer(options =>
+                {
+                    options.MinimumLevel = Microsoft.Extensions.Logging.LogLevel.Trace;
+                    options.MaxQueueSize = 10000;
+
+                    // Configure category colors for different services
+                    options.CategoryColors["ExampleVM"] = Colors.DodgerBlue;
+                    options.CategoryColors["SomeObject"] = Colors.MediumPurple;
+                    options.CategoryColors["MainWindow"] = Colors.OrangeRed;
+                });
             });
 
+            // Register transient services that use ILogger<T>
+            services.AddTransient<ExampleVM>();
+
+            ServiceProvider = services.BuildServiceProvider();
+            ServiceProvider.AttachLoggerFactoryToLogViewer();
+
+            // Initialize BaseLogger for classes that extend it (like SomeObject)
+            var loggerFactory = ServiceProvider.GetRequiredService<ILoggerFactory>();
             BaseLogger.Initialize(loggerFactory);
-
-            BaseLoggerProvider baseLoggerProvider = new(Microsoft.Extensions.Logging.LogLevel.Information);
-            Dictionary<string, Color> colorMap = [];
-            baseLoggerProvider.SetCategoryColor(colorMap);
-
-            ServiceCollection serviceCollection = new();
-            serviceCollection.AddSingleton(baseLoggerProvider);
-
-            ServiceProvider = serviceCollection.BuildServiceProvider();
         }
 
         private void Application_Exit(object sender, ExitEventArgs e)
         {
             try
             {
-                ServiceProvider?.GetRequiredService<ILoggerProvider>()?.Dispose();
-                BaseLogger.Shutdown();
+                // Dispose providers via DI
+                if (ServiceProvider is IDisposable disposable)
+                {
+                    disposable.Dispose();
+                }
                 LogManager.Shutdown();
             }
+#pragma warning disable RCS1075 // Avoid empty catch clause that catches System.Exception
             catch (Exception)
             {
                 // swallow it, this is an example application and it's closing
             }
+#pragma warning restore RCS1075 // Avoid empty catch clause that catches System.Exception
         }
     }
 

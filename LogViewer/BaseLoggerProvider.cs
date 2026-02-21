@@ -1,147 +1,119 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Windows.Media;
 using Microsoft.Extensions.Logging;
 
 namespace LogViewer
 {
     /// <summary>
-    /// Provides a base implementation for a logger provider that supports category-based logging with customizable
-    /// colors.
+    /// ILoggerProvider implementation that creates <see cref="BaseLogger"/> instances for the DI pattern.
+    /// Can optionally wrap another <see cref="ILoggerFactory"/> to pass logs through to other providers.
     /// </summary>
-    /// <remarks>It supports setting colors for categories to enable visual
-    /// differentiation in log outputs. The default log level can be specified during instantiation.</remarks>
-    /// <param name="defaultLogLevel"></param>
-    public class BaseLoggerProvider(LogLevel defaultLogLevel = LogLevel.Trace)
+    /// <remarks>
+    /// Creates a <see cref="BaseLoggerProvider"/> with a custom sink.
+    /// </remarks>
+    /// <param name="sink">The sink to write log events to.</param>
+    /// <param name="innerFactory">Optional inner factory to pass through log calls to.</param>
+    public sealed class BaseLoggerProvider(IBaseLoggerSink sink, ILoggerFactory? innerFactory = null) : ILoggerProvider
     {
-        private readonly ConcurrentDictionary<string, Color> _categoryColors = [];
+        private readonly ConcurrentDictionary<string, BaseLogger> _loggers = new(StringComparer.OrdinalIgnoreCase);
+        private readonly ConcurrentDictionary<string, Color> _categoryColors = new(StringComparer.OrdinalIgnoreCase);
+        private readonly IBaseLoggerSink _sink = sink ?? throw new ArgumentNullException(nameof(sink));
+        private readonly ILoggerFactory? _innerFactory = innerFactory;
+        private bool _disposed;
 
         /// <summary>
-        /// Gets or sets the default log level for the logger.
+        /// Gets or sets the minimum log level for loggers created by this provider.
         /// </summary>
-        public LogLevel DefaultLogLevel { get; set; } = defaultLogLevel;
+        public LogLevel MinimumLevel { get; set; } = LogLevel.Trace;
 
         /// <summary>
-        /// Creates a logger for the specified category name.
+        /// Gets or sets a value indicating whether the namespace is removed from the category name.
         /// </summary>
-        /// <remarks>The logger is created with a color associated with the category name, if available;
-        /// otherwise, it defaults to black. The default log level is applied to the logger.</remarks>
-        /// <param name="categoryName">The name of the category for which the logger is created. This value cannot be null or empty.</param>
-        /// <returns>An <see cref="ILogger"/> instance configured for the specified category name.</returns>
-        public ILogger CreateLogger(string categoryName) => CreateLogger(categoryName, null, null);
+        /// <remarks>When set to <see langword="true"/>, the namespace portion of the category name is
+        /// omitted, which can improve readability in user interfaces or logs by displaying only the simple category
+        /// name.</remarks>
+        public bool StripNamespaceFromCategory { get; set; } = true;
 
         /// <summary>
-        /// Creates a logger instance for the specified type.
+        /// Creates a <see cref="BaseLoggerProvider"/> with the default singleton sink.
         /// </summary>
-        /// <typeparam name="T">The type for which the logger is created.</typeparam>
-        /// <param name="color">An optional color to use for log messages. If not specified, a default color is used.</param>
-        /// <param name="logLevel">An optional log level to set for the logger. If not specified, the default log level is used.</param>
-        /// <returns>An <see cref="ILogger"/> instance configured for the specified type.</returns>
-        public ILogger CreateLogger<T>(Color? color = null, LogLevel? logLevel = null) => CreateLogger(typeof(T).Name, color, logLevel);
+        public BaseLoggerProvider()
+            : this(BaseLoggerSink.Instance, null) { }
 
         /// <summary>
-        /// Creates a new logger instance with the specified category name, color, and log level.
+        /// Creates a <see cref="BaseLoggerProvider"/> that wraps an existing <see cref="ILoggerFactory"/>.
+        /// Logs will be sent to both LogViewer and the wrapped factory.
         /// </summary>
-        /// <param name="categoryName">The category name for the logger, used to group log messages.</param>
-        /// <param name="color">The optional color to associate with the logger. Defaults to black if not specified.</param>
-        /// <param name="logLevel">The optional log level to set for the logger. Defaults to the predefined default log level if not specified.</param>
-        /// <returns>An <see cref="ILogger"/> instance configured with the specified category name, color, and log level.</returns>
-        public ILogger CreateLogger(string categoryName, Color? color = null, LogLevel? logLevel = null)
+        /// <param name="innerFactory">The factory to wrap (NLog, Serilog, etc.).</param>
+        public BaseLoggerProvider(ILoggerFactory innerFactory)
+            : this(BaseLoggerSink.Instance, innerFactory) { }
+
+        /// <inheritdoc />
+        public ILogger CreateLogger(string categoryName)
         {
-            if (string.IsNullOrWhiteSpace(categoryName))
+            return _loggers.GetOrAdd(categoryName, name =>
             {
-                throw new ArgumentException("Category name cannot be null or empty", nameof(categoryName));
-            }
-            try
-            {
-                categoryName = BaseLogger.SanitizeHandle(categoryName);
-                color ??= _categoryColors.TryGetValue(categoryName, out Color foundColor) ? foundColor : Colors.Black;
-                logLevel ??= DefaultLogLevel;
-                return new Logger(categoryName, color, logLevel.Value);
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException($"Failed to create logger for category '{categoryName}'", ex);
-            }
+                var typeName = name;
+                if (StripNamespaceFromCategory)
+                {
+                    // Extract just the type name if this is a fully-qualified name (e.g., "Namespace.TypeName" -> "TypeName")
+                    var lastDotIndex = name.LastIndexOf('.');
+                    if (lastDotIndex >= 0 && lastDotIndex < name.Length - 1)
+                    {
+                        typeName = name[(lastDotIndex + 1)..];
+                    }
+                }
+
+                var sanitizedName = BaseLogger.SanitizeHandle(typeName);
+                var color = _categoryColors.TryGetValue(sanitizedName, out var c) ? c : Colors.Black;
+                var innerLogger = _innerFactory?.CreateLogger(name);
+                return new BaseLogger(sanitizedName, color, _sink, innerLogger, this);
+            });
         }
 
         /// <summary>
         /// Sets the color associated with a specified category name.
         /// </summary>
-        /// <param name="categoryName">The name of the category for which to set the color. Cannot be null or empty.</param>
-        /// <param name="color">The <see cref="Color"/> to associate with the specified category.</param>
-        /// <exception cref="ArgumentException">Thrown if <paramref name="categoryName"/> is null or empty.</exception>
+        /// <param name="categoryName">The category name.</param>
+        /// <param name="color">The color to associate with the category.</param>
         public void SetCategoryColor(string categoryName, Color color)
         {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(categoryName))
-                {
-                    throw new ArgumentException("Category name cannot be null or empty", nameof(categoryName));
-                }
-                categoryName = BaseLogger.SanitizeHandle(categoryName);
-                _categoryColors[categoryName] = color;
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException($"Failed to set color for category '{categoryName}'", ex);
-            }
+            if (string.IsNullOrWhiteSpace(categoryName))
+                throw new ArgumentException("Category name cannot be null or empty", nameof(categoryName));
+
+            _categoryColors[BaseLogger.SanitizeHandle(categoryName)] = color;
         }
 
         /// <summary>
-        /// Sets the color associated with a specific log category.
+        /// Sets the color associated with a specific type's category.
         /// </summary>
-        /// <remarks>This method assigns a color to a log category, which can be used for visual
-        /// differentiation in log outputs. The category is determined by the type parameter <typeparamref
-        /// name="T"/>.</remarks>
-        /// <typeparam name="T">The type representing the log category.</typeparam>
-        /// <param name="color">The <see cref="Color"/> to associate with the specified log category.</param>
+        /// <typeparam name="T">The type whose name will be used as the category.</typeparam>
+        /// <param name="color">The color to associate with the category.</param>
         public void SetCategoryColor<T>(Color color)
         {
-            try
-            {
-                string name = BaseLogger.SanitizeHandle(typeof(T).Name);
-                _categoryColors[name] = color;
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException($"Failed to set color for category '{typeof(T).Name}'", ex);
-            }
+            SetCategoryColor(typeof(T).Name, color);
         }
 
         /// <summary>
-        /// Sets the color for each category specified in the provided dictionary.
+        /// Sets colors for multiple categories at once.
         /// </summary>
-        /// <remarks>The method updates the internal category color mapping with the colors specified in
-        /// <paramref name="colorMap"/>. Category names are sanitized before being used.</remarks>
-        /// <param name="colorMap">A read-only dictionary mapping category names to their corresponding colors.  If <paramref name="colorMap"/>
-        /// is <see langword="null"/>, an empty dictionary is used.</param>
-        /// <exception cref="InvalidOperationException">Thrown if setting a color for any category fails.</exception>
-        public void SetCategoryColor(IReadOnlyDictionary<string, Color> colorMap)
+        /// <param name="colorMap">A dictionary mapping category names to colors.</param>
+        public void SetCategoryColors(IReadOnlyDictionary<string, Color> colorMap)
         {
-            colorMap ??= new Dictionary<string, Color>();
-            try
+            if (colorMap is null) return;
+
+            foreach (var kvp in colorMap)
             {
-                foreach (var kvp in colorMap)
-                {
-                    string categoryName = BaseLogger.SanitizeHandle(kvp.Key);
-                    try
-                    {
-                        _categoryColors[categoryName] = kvp.Value;
-                    }
-                    catch (Exception ex)
-                    {
-                        throw new InvalidOperationException($"Failed to set color for category '{categoryName}'", ex);
-                    }
-                }
+                SetCategoryColor(kvp.Key, kvp.Value);
             }
-            catch (InvalidOperationException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException("Failed to set category colors from the provided dictionary", ex);
-            }
+        }
+
+        /// <inheritdoc />
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _loggers.Clear();
+            _disposed = true;
         }
     }
 }
